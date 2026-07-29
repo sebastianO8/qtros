@@ -29,6 +29,7 @@ authors = [{ name = "Principal Investigator" }]
 # can drift underneath an archived manifest.
 dependencies = [
     "polars>=1.9,<2.0",           # Layer 0/0.5 vectorized frames
+    "numpy>=1.26, <2.0",
     "duckdb>=1.1,<2.0",           # Layer 0 warehouse — imported ONLY by qtros.data.store
     "pydantic>=2.9,<3.0",         # configuration schema
     "pydantic-settings>=2.5,<3.0",# .env secrets (Phase 4 webhooks); never YAML
