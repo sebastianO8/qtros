@@ -25,6 +25,7 @@ from typing import Final
 
 from qtros.domain.enums import Direction, ExitReason
 from qtros.domain.identifiers import FillId, InstrumentId, TradeId
+from qtros.domain.money import quantize_money
 
 ZERO: Final[Decimal] = Decimal("0")
 
@@ -60,7 +61,9 @@ class ExecutionFill:
         realized_pnl: PnL crystallised by this fill. Zero for entries. ``None`` until the
             portfolio books it.
         cash_delta: Net cash movement. ``None`` until booked. The reconciliation identity
-            is per-fill and exact: ``cash_delta == realized_pnl - total_costs``.
+            is per-fill and exact: ``cash_delta == realized_pnl - cash_costs``, where
+            cash costs are commission only — spread and slippage are already embedded
+            in ``fill_price``.
     """
 
     fill_id: FillId
@@ -82,9 +85,33 @@ class ExecutionFill:
     cash_delta: Decimal | None = None
 
     @property
+    def implicit_costs(self) -> Decimal:
+        """Return friction already embedded in the fill price.
+
+        Spread and slippage are not debited from the balance; they are paid by receiving a
+        worse price, and that worse price is already inside ``realized_pnl``. They are
+        reported here for Directive 2 attribution and are deliberately excluded from the
+        cash identity, because deducting them again would charge them twice — once in the
+        price and once in the ledger.
+        """
+        return self.spread_cost + self.slippage_cost
+
+    @property
+    def cash_costs(self) -> Decimal:
+        """Return friction charged as a separate cash debit.
+
+        Commission only. This is the figure the cash identity uses.
+        """
+        return self.commission
+
+    @property
     def total_costs(self) -> Decimal:
-        """Return every friction component charged on this fill."""
-        return self.commission + self.spread_cost + self.slippage_cost
+        """Return every friction component, implicit and explicit.
+
+        Used for reporting and for a trade's total cost line. Not used in the cash
+        identity; see :attr:`cash_costs`.
+        """
+        return self.implicit_costs + self.commission
 
     @property
     def is_booked(self) -> bool:
@@ -96,17 +123,24 @@ class ExecutionFill:
 
         Raises:
             ValueError: If the fill is unbooked, or if ``cash_delta`` does not equal
-                ``realized_pnl - total_costs`` exactly. Under Decimal arithmetic the
+                ``realized_pnl - cash_costs`` exactly. Under Decimal arithmetic the
                 comparison is exact, so any discrepancy is a logic error rather than a
                 possible rounding artefact.
+
+        Note:
+            The identity uses :attr:`cash_costs`, not :attr:`total_costs`. Spread and
+            slippage are already reflected in ``fill_price`` and therefore in
+            ``realized_pnl``; subtracting them again double-charges them. This distinction
+            was surfaced by the buy-and-hold benchmark, which is precisely the class of
+            error a known-truth test exists to catch.
         """
         if not self.is_booked:
             raise ValueError(f"Fill {self.fill_id} is not booked")
-        expected: Decimal = (self.realized_pnl or ZERO) - self.total_costs
+        expected: Decimal = (self.realized_pnl or ZERO) - self.cash_costs
         if self.cash_delta != expected:
             raise ValueError(
                 f"Fill {self.fill_id} violates its accounting identity: "
-                f"cash_delta={self.cash_delta} but realized_pnl - costs = {expected}"
+                f"cash_delta={self.cash_delta} but realized_pnl - cash_costs = {expected}"
             )
 
 
@@ -166,7 +200,7 @@ class PositionState:
             Unrealised PnL in the quote currency.
         """
         move: Decimal = (mark_price - self.avg_entry_price) * Decimal(self.direction.sign)
-        return move * self.quantity * contract_size
+        return quantize_money(move * self.quantity * contract_size)
 
 
 @dataclass(frozen=True, slots=True)

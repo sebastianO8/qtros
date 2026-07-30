@@ -40,6 +40,7 @@ from qtros.domain.execution import (
 from qtros.domain.identifiers import FillId, SequentialIdFactory, TradeId
 from qtros.domain.instrument import InstrumentSpec
 from qtros.domain.market import BarData
+from qtros.domain.money import apportion, quantize_money, quantize_price
 from qtros.domain.signals import PortfolioView
 
 _LOGGER: Final = structlog.get_logger(__name__)
@@ -279,7 +280,11 @@ class Portfolio:
         Returns:
             The booked fill.
         """
-        cash_delta: Decimal = realized_pnl - fill.total_costs
+        # Quantized before storage: every ledger value must be bounded-precision, or the
+        # running balance and the sum of deltas round differently and Directive 6 fails
+        # for a reason that is arithmetic rather than logical (see domain.money).
+        realized_pnl = quantize_money(realized_pnl)
+        cash_delta: Decimal = realized_pnl - quantize_money(fill.cash_costs)
         booked: ExecutionFill = replace(
             fill,
             trade_id=trade_id if trade_id is not None else fill.trade_id,
@@ -334,10 +339,13 @@ class Portfolio:
         booked: ExecutionFill = self._book(fill, realized_pnl=ZERO, trade_id=position.trade_id)
 
         combined_quantity: Decimal = position.quantity + booked.quantity
-        weighted: Decimal = (
-            position.avg_entry_price * position.quantity
-            + booked.fill_price * booked.quantity
-        ) / combined_quantity
+        weighted: Decimal = quantize_price(
+            (
+                position.avg_entry_price * position.quantity
+                + booked.fill_price * booked.quantity
+            )
+            / combined_quantity
+        )
 
         self._position = replace(
             position,
@@ -415,15 +423,19 @@ class Portfolio:
         opening_quantity: Decimal = fill.quantity - closing_quantity
 
         closing_share: Decimal = closing_quantity / fill.quantity
-        opening_share: Decimal = Decimal("1") - closing_share
+        # Each cost is split so the two halves sum to the original exactly; the opening
+        # side takes the remainder rather than being quantized independently.
+        closing_commission, opening_commission = apportion(fill.commission, closing_share)
+        closing_spread, opening_spread = apportion(fill.spread_cost, closing_share)
+        closing_slippage, opening_slippage = apportion(fill.slippage_cost, closing_share)
 
         closing_fill: ExecutionFill = replace(
             fill,
             fill_id=FillId(f"{fill.fill_id}c"),
             quantity=closing_quantity,
-            commission=fill.commission * closing_share,
-            spread_cost=fill.spread_cost * closing_share,
-            slippage_cost=fill.slippage_cost * closing_share,
+            commission=closing_commission,
+            spread_cost=closing_spread,
+            slippage_cost=closing_slippage,
             is_entry=False,
             exit_reason=fill.exit_reason or ExitReason.REVERSAL,
         )
@@ -457,9 +469,9 @@ class Portfolio:
             fill_id=FillId(f"{fill.fill_id}o"),
             trade_id=self._ids.next_trade_id(),
             quantity=opening_quantity,
-            commission=fill.commission * opening_share,
-            spread_cost=fill.spread_cost * opening_share,
-            slippage_cost=fill.slippage_cost * opening_share,
+            commission=opening_commission,
+            spread_cost=opening_spread,
+            slippage_cost=opening_slippage,
             is_entry=True,
             exit_reason=None,
         )
@@ -543,8 +555,17 @@ class Portfolio:
         entry_quantity: Decimal = sum(
             (fill.quantity for fill in fills if fill.is_entry), ZERO
         )
+        # realized_pnl is measured at fill prices, which already carry spread and
+        # slippage. Adding the implicit costs back reconstructs the PnL that would have
+        # been earned at the reference prices, which is what "gross" should mean.
+        # Subtracting all friction from that then returns exactly the cash figure:
+        #     net = (realized + implicit) - (implicit + commission) = realized - commission
+        # so Trade.net_pnl equals the sum of this trade's fill cash deltas by identity
+        # rather than by coincidence.
+        realized: Decimal = sum(((fill.realized_pnl or ZERO) for fill in fills), ZERO)
+        implicit: Decimal = sum((fill.implicit_costs for fill in fills), ZERO)
         costs: Decimal = sum((fill.total_costs for fill in fills), ZERO)
-        gross: Decimal = sum(((fill.realized_pnl or ZERO) for fill in fills), ZERO)
+        gross: Decimal = realized + implicit
 
         return Trade(
             trade_id=position.trade_id,

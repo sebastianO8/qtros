@@ -42,6 +42,7 @@ from qtros.domain.execution import ExecutionFill, PositionState
 from qtros.domain.identifiers import SequentialIdFactory
 from qtros.domain.instrument import InstrumentSpec
 from qtros.domain.market import BarData
+from qtros.domain.money import quantize_money
 from qtros.domain.orders import ApprovedOrder
 from qtros.execution.friction import FrictionCharges, IFrictionModel
 
@@ -215,6 +216,14 @@ class SimulatedBroker:
         fill_price: Decimal = self._apply_adverse_adjustment(
             reference, order.direction, charges.price_adjustment, spec
         )
+        spread_cost, slippage_cost = self._derive_implicit_costs(
+            reference=reference,
+            fill_price=fill_price,
+            direction=order.direction,
+            quantity=order.quantity,
+            charges=charges,
+            spec=spec,
+        )
 
         fill = ExecutionFill(
             fill_id=self._ids.next_fill_id(),
@@ -226,9 +235,9 @@ class SimulatedBroker:
             quantity=order.quantity,
             reference_price=reference,
             fill_price=fill_price,
-            commission=charges.commission,
-            spread_cost=charges.spread_cost,
-            slippage_cost=charges.slippage_cost,
+            commission=quantize_money(charges.commission),
+            spread_cost=spread_cost,
+            slippage_cost=slippage_cost,
             is_entry=not order.is_exit,
             exit_reason=exit_reason or order.intent.exit_reason,
         )
@@ -241,7 +250,8 @@ class SimulatedBroker:
             quantity=str(order.quantity),
             reference_price=str(reference),
             fill_price=str(fill_price),
-            costs=str(charges.total),
+            implicit_costs=str(fill.implicit_costs),
+            commission=str(fill.commission),
         )
         return BrokerResult(fill=fill)
 
@@ -354,6 +364,58 @@ class SimulatedBroker:
             The bar's open under next-bar-open timing, or its close under same-bar-close.
         """
         return bar.close if self._timing is ExecutionTiming.SAME_BAR_CLOSE else bar.open
+
+    @staticmethod
+    def _derive_implicit_costs(
+        *,
+        reference: Decimal,
+        fill_price: Decimal,
+        direction: Direction,
+        quantity: Decimal,
+        charges: FrictionCharges,
+        spec: InstrumentSpec,
+    ) -> tuple[Decimal, Decimal]:
+        """Convert the price degradation that actually occurred into cash costs.
+
+        Costs are derived from ``fill_price - reference`` rather than from the friction
+        model's intended adjustment. The two differ because the fill price is snapped
+        adversely to the tick grid, and that rounding is a real cost paid on every single
+        fill. Reporting the intended figure would leave it unattributed, and over four
+        hundred trades an unattributed fraction of a tick per fill is not a rounding
+        footnote.
+
+        The degradation is split spread-first: the spread is a floor the market charges
+        before anything else happens, so any excess — intended slippage plus tick
+        rounding — is attributed to slippage.
+
+        Args:
+            reference: Pre-friction price.
+            fill_price: Executable price after adjustment and rounding.
+            direction: Side being filled.
+            quantity: Lots transacted.
+            charges: The friction model's price-unit components.
+            spec: Contract specification.
+
+        Returns:
+            A pair of (spread cost, slippage cost) in cash. Both are non-negative, and
+            their sum equals the cash value of the actual price degradation exactly —
+            which is what lets a trade's gross PnL reconstruct the reference-price PnL.
+        """
+        degradation: Decimal = (fill_price - reference) * Decimal(direction.sign)
+        if degradation < ZERO:
+            # Rounding can only move a price adversely or leave it unchanged; a negative
+            # degradation would mean the grid handed the trader free edge.
+            degradation = ZERO
+
+        contract_units: Decimal = quantity * spec.contract_size
+        # Quantize the total first, then derive the spread half and take slippage as the
+        # remainder. Quantizing the two halves independently would leave a sub-cent
+        # residual that belongs to neither, and the implicit cost would no longer equal
+        # the cash value of the price degradation.
+        total_implicit: Decimal = quantize_money(degradation * contract_units)
+        spread_price: Decimal = min(charges.spread_price, degradation)
+        spread_cost: Decimal = quantize_money(spread_price * contract_units)
+        return spread_cost, total_implicit - spread_cost
 
     @staticmethod
     def _apply_adverse_adjustment(
