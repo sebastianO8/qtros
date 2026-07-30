@@ -1,10 +1,10 @@
 """Rolling z-score of an arbitrary column.
 
 Exists partly for its own sake and partly because it is the clearest demonstration that
-warmup is a path property rather than a maximum. A 50-period z-score of a 14-period ATR
-over true range requires 1 + 14 + 50 = 65 bars before its first trustworthy value. Taking
-the maximum single lookback would trim 50 and hand the strategy fifteen bars of
-quietly-wrong data at the start of every walk-forward fold.
+warmup is a path property rather than a maximum. A 50-period z-score of a 14-period ATR over
+true range requires 1 + 14 + 50 = 65 bars before its first trustworthy value. Taking the
+maximum single lookback would trim 50 and hand the strategy fifteen bars of quietly-wrong
+data at the start of every walk-forward fold.
 """
 
 from __future__ import annotations
@@ -12,27 +12,18 @@ from __future__ import annotations
 import polars as pl
 
 from qtros.domain.errors import ConfigurationError
-from qtros.domain.feature_contracts import (
-    Causality,
-    FeatureSpec,
-    WarmupRequirement,
-)
-from qtros.features.transforms.base import (
-    guard_column_name,
-    register_transform,
-    safe_divide,
-)
+from qtros.domain.feature_contracts import Causality, FeatureSpec, WarmupRequirement
+from qtros.features.transforms.base import TransformBase, register_transform, safe_divide
 
 
 @register_transform("rolling_zscore")
-class RollingZScore:
+class RollingZScore(TransformBase):
     """Standardise a column against its own trailing window.
 
     Args:
         source_column: Column to standardise.
         window: Trailing window length in bars.
-        output_column: Name of the emitted column. Defaults to
-            ``z_{source_column}_{window}``.
+        output_column: Name of the emitted column. Defaults to ``z_{source_column}_{window}``.
         min_periods: Observations required before emitting a value. Defaults to the full
             window, because a z-score computed from four observations is a number with no
             information in it.
@@ -61,9 +52,7 @@ class RollingZScore:
         self._source: str = source_column
         self._window: int = window
         self._min_periods: int = resolved_min
-        self._column: str = guard_column_name(
-            output_column or f"z_{source_column}_{window}", "rolling_zscore"
-        )
+        self._column: str = output_column or f"z_{source_column}_{window}"
 
     @property
     def spec(self) -> FeatureSpec:
@@ -87,7 +76,7 @@ class RollingZScore:
         """Return the window length as this transform's own lookback."""
         return WarmupRequirement(bars=self._window)
 
-    def apply(self, frame: pl.LazyFrame) -> pl.LazyFrame:
+    def _build(self, frame: pl.LazyFrame) -> pl.LazyFrame:
         """Append the rolling z-score column.
 
         Args:
@@ -97,10 +86,10 @@ class RollingZScore:
             The frame with the z-score column appended.
 
         Note:
-            A zero trailing standard deviation yields null rather than infinity. Flat
-            windows are common in thin sessions and on illiquid instruments, and an
-            infinity there would propagate into every downstream statistic and surface
-            much later as an inexplicable signal.
+            A zero trailing standard deviation yields null rather than infinity. Flat windows
+            are common in thin sessions and on illiquid instruments, and an infinity there
+            would propagate into every downstream statistic and surface much later as an
+            inexplicable signal.
         """
         source: pl.Expr = pl.col(self._source)
         mean: pl.Expr = source.rolling_mean(

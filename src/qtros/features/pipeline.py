@@ -27,15 +27,17 @@ import structlog
 
 from qtros.domain.errors import ConfigurationError, SchemaContractError
 from qtros.domain.feature_contracts import (
+    BASE_COLUMNS,
     Causality,
     FeatureFrame,
     FeatureSpec,
     IFeatureTransform,
     LagAuditReport,
     LagPolicy,
+    SealedFeatureSet,
     WarmupPlan,
 )
-from qtros.features.transforms.base import BASE_COLUMNS
+from qtros.features.transforms.base import TransformBase, seal_features
 
 _LOGGER: Final = structlog.get_logger(__name__)
 
@@ -82,6 +84,7 @@ class FeaturePipeline:
         audit: bool = True,
         audit_probe_count: int = 25,
         audit_seed: int = 0,
+        conformance_check: bool = True,
     ) -> FeatureFrame:
         """Compute a feature frame, trimmed and validated.
 
@@ -96,9 +99,13 @@ class FeaturePipeline:
                 whose causality is a matter of belief.
             audit_probe_count: Probe indices to sample.
             audit_seed: Seed for deterministic probe selection.
+            conformance_check: Run each transform's contract check against a probe frame
+                before touching real data. True by default: it costs milliseconds and it
+                catches an undeclared dependency, a row-count change, or a non-deterministic
+                build before a multi-year run rather than during one.
 
         Returns:
-            A validated feature frame.
+            A validated, provenance-sealed feature frame.
 
         Raises:
             SchemaContractError: If the input frame is missing a required column, or a
@@ -112,6 +119,7 @@ class FeaturePipeline:
         self._validate_input_frame(frame)
         order: tuple[IFeatureTransform, ...] = resolve_execution_order(transforms)
         self._guard_causality(order, allow_non_causal=allow_non_causal)
+        self._run_conformance_checks(order, enabled=conformance_check)
         plan: WarmupPlan = resolve_warmup(order)
 
         computed: pl.DataFrame = self._apply_all(frame, order)
@@ -142,6 +150,13 @@ class FeaturePipeline:
         head_rows: int = self._resolve_head_trim(computed, plan) + shift_applied
         trimmed: pl.DataFrame = computed.slice(head_rows)
 
+        # DIR-001, producer side: record which transform produced every feature column,
+        # then assert the frame contains nothing else. A column added between the pipeline
+        # and the engine — by a notebook, a debugging session, a well-meaning helper —
+        # would otherwise be indistinguishable from a real feature at the context boundary.
+        sealed: SealedFeatureSet = seal_features(order)
+        sealed.verify_frame_columns(trimmed.columns)
+
         self._report_null_fractions(trimmed, feature_columns)
 
         result = FeatureFrame(
@@ -153,6 +168,7 @@ class FeaturePipeline:
             availability_shift_applied=shift_applied,
             lag_audit=report,
             feature_columns=feature_columns,
+            sealed_features=sealed,
         )
 
         _LOGGER.info(
@@ -164,6 +180,9 @@ class FeaturePipeline:
             warmup_bars=plan.total_bars,
             lag_policy=str(lag_policy),
             audited=audit,
+            conformance_checked=conformance_check,
+            sealed_columns=len(sealed.features),
+            non_causal_columns=list(sealed.non_causal_columns),
             feature_set_hash=result.feature_set_hash()[:12],
         )
         return result
@@ -179,6 +198,11 @@ class FeaturePipeline:
 
         This is what the lag auditor calls. It must remain free of trimming and shifting,
         because both would mask exactly the divergence the audit is looking for.
+
+        Conformance checks are deliberately *not* run here. The auditor calls this once per
+        probe index, and re-verifying an unchanged transform on every call would multiply the
+        audit's cost for no additional information — the check is a property of the transform,
+        not of the frame.
 
         Args:
             frame: Bars to transform.
@@ -275,6 +299,38 @@ class FeaturePipeline:
                     "and cumulative feature below assumes it is",
                     descending_steps=descending,
                 )
+
+    @staticmethod
+    def _run_conformance_checks(
+        order: Sequence[IFeatureTransform],
+        *,
+        enabled: bool,
+    ) -> None:
+        """Verify every transform honours its declared contract before real data is used.
+
+        Args:
+            order: Transforms in execution order.
+            enabled: Whether to run the checks.
+
+        Raises:
+            ConfigurationError: If a transform does not derive from :class:`TransformBase`.
+                Registration already refuses such classes; this covers transforms constructed
+                directly, and it is what makes the producer-side guarantee total rather than
+                typical — one unchecked transform and the seal cannot vouch for the columns it
+                produced.
+            SchemaContractError: If a transform fails its contract check.
+        """
+        if not enabled:
+            return
+        for transform in order:
+            if not isinstance(transform, TransformBase):
+                raise ConfigurationError(
+                    "Feature transforms must derive from TransformBase so their declared "
+                    "dependencies, outputs, and row-count invariance are enforced",
+                    transform=transform.spec.name,
+                    cls=type(transform).__name__,
+                )
+            transform.self_check()
 
     @staticmethod
     def _guard_causality(
@@ -535,4 +591,5 @@ def describe_plan(order: Sequence[IFeatureTransform], plan: WarmupPlan) -> Mappi
         "spec_hashes": {
             transform.spec.name: transform.spec.short_hash for transform in order
         },
+        "sealed_columns": sorted(seal_features(order).features),
     }

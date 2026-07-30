@@ -1,9 +1,13 @@
 """True Range and Average True Range.
 
-Split into two transforms rather than one because ATR-of-true-range is the smallest
-honest example of a dependency chain, and because true range is independently useful for
-stop placement in Layer 3. The split is also what exercises cumulative warmup resolution:
-ATR(14) over TrueRange needs 15 bars of history, not 14.
+Split into two transforms rather than one because ATR-of-true-range is the smallest honest
+example of a dependency chain, and because true range is independently useful for stop
+placement in Layer 3. The split is also what exercises cumulative warmup resolution: ATR(14)
+over TrueRange needs 15 bars of history, not 14.
+
+Both derive from :class:`TransformBase`, so their declared dependencies, declared outputs,
+row-count invariance, and determinism are checked against a probe frame before any real data
+reaches them.
 """
 
 from __future__ import annotations
@@ -14,12 +18,8 @@ from typing import Final
 import polars as pl
 
 from qtros.domain.errors import ConfigurationError
-from qtros.domain.feature_contracts import (
-    Causality,
-    FeatureSpec,
-    WarmupRequirement,
-)
-from qtros.features.transforms.base import guard_column_name, register_transform
+from qtros.domain.feature_contracts import Causality, FeatureSpec, WarmupRequirement
+from qtros.features.transforms.base import TransformBase, register_transform
 
 TRUE_RANGE_COLUMN: Final[str] = "true_range"
 
@@ -33,14 +33,14 @@ class AtrMethod(StrEnum):
     WILDER = "WILDER"
     """Wilder's smoothing, an EWM with alpha = 1/period.
 
-    The kernel never fully decays, so no finite warmup makes the output exactly correct.
-    A declared multiple of the period is used, which is an approximation — an honest one,
-    since the alternative is pretending the requirement is ``period``.
+    The kernel never fully decays, so no finite warmup makes the output exactly correct. A
+    declared multiple of the period is used, which is an approximation — an honest one, since
+    the alternative is pretending the requirement is ``period``.
     """
 
 
 @register_transform("true_range")
-class TrueRange:
+class TrueRange(TransformBase):
     """True range: the greatest of the current bar's span and its two gap distances.
 
     Args:
@@ -48,13 +48,13 @@ class TrueRange:
 
     Note:
         On the first bar the previous close is null, so both gap terms are null and the
-        result reduces to high minus low. This is the standard convention, and it is
-        stated here because a reader would otherwise reasonably wonder whether the first
-        bar is a bug. The declared one-bar warmup means that row is trimmed anyway.
+        result reduces to high minus low. This is the standard convention, stated here
+        because a reader would otherwise reasonably wonder whether the first bar is a bug.
+        The declared one-bar warmup means that row is trimmed anyway.
     """
 
     def __init__(self, output_column: str = TRUE_RANGE_COLUMN) -> None:
-        self._column: str = guard_column_name(output_column, "true_range")
+        self._column: str = output_column
 
     @property
     def spec(self) -> FeatureSpec:
@@ -73,7 +73,7 @@ class TrueRange:
         """Return the one bar of history needed for the previous close."""
         return WarmupRequirement(bars=1)
 
-    def apply(self, frame: pl.LazyFrame) -> pl.LazyFrame:
+    def _build(self, frame: pl.LazyFrame) -> pl.LazyFrame:
         """Append the true range column.
 
         Args:
@@ -93,20 +93,20 @@ class TrueRange:
 
 
 @register_transform("atr")
-class AverageTrueRange:
+class AverageTrueRange(TransformBase):
     """Average true range over a declared period.
 
     Args:
         period: Smoothing period in bars.
         method: Smoothing method.
-        source_column: Column holding true range. Declared rather than assumed so the
-            dependency is visible to the DAG resolver.
+        source_column: Column holding true range. Declared rather than assumed, so the
+            dependency is visible to the DAG resolver and is verified against a probe frame
+            containing only what this transform declares.
         output_column: Name of the emitted column. Defaults to ``atr_{period}``.
         wilder_warmup_multiple: Periods of history required under Wilder smoothing.
 
     Raises:
-        ConfigurationError: If the period is below two, or the warmup multiple is below
-            one.
+        ConfigurationError: If the period is below two, or the warmup multiple is below one.
     """
 
     def __init__(
@@ -128,7 +128,7 @@ class AverageTrueRange:
         self._method: AtrMethod = AtrMethod(method)
         self._source: str = source_column
         self._multiple: int = wilder_warmup_multiple
-        self._column: str = guard_column_name(output_column or f"atr_{period}", "atr")
+        self._column: str = output_column or f"atr_{period}"
 
     @property
     def spec(self) -> FeatureSpec:
@@ -153,14 +153,14 @@ class AverageTrueRange:
         """Return the history required, which depends on the smoothing kernel.
 
         Returns:
-            The period for SMA; a multiple of the period for Wilder, whose exponential
-            kernel has no finite support.
+            The period for SMA; a multiple of the period for Wilder, whose exponential kernel
+            has no finite support.
         """
         if self._method is AtrMethod.SMA:
             return WarmupRequirement(bars=self._period)
         return WarmupRequirement(bars=self._period * self._multiple)
 
-    def apply(self, frame: pl.LazyFrame) -> pl.LazyFrame:
+    def _build(self, frame: pl.LazyFrame) -> pl.LazyFrame:
         """Append the smoothed average true range column.
 
         Args:
@@ -173,8 +173,6 @@ class AverageTrueRange:
         smoothed: pl.Expr = (
             source.rolling_mean(window_size=self._period, min_periods=self._period)
             if self._method is AtrMethod.SMA
-            else source.ewm_mean(
-                alpha=1.0 / self._period, adjust=False, min_periods=self._period
-            )
+            else source.ewm_mean(alpha=1.0 / self._period, adjust=False, min_periods=self._period)
         )
         return frame.with_columns(smoothed.alias(self._column))

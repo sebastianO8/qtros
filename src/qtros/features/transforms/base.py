@@ -47,7 +47,7 @@ not merely expected to behave:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Final, TypeVar
@@ -56,18 +56,20 @@ import polars as pl
 import structlog
 
 from qtros.domain.errors import ConfigurationError, SchemaContractError
-from qtros.domain.feature_contracts import Causality, FeatureSpec, WarmupRequirement
+from qtros.domain.feature_contracts import (
+    BASE_COLUMNS,
+    FeatureSpec,
+    IFeatureTransform,
+    SealedFeature,
+    SealedFeatureSet,
+    WarmupRequirement,
+)
 
 _LOGGER: Final = structlog.get_logger(__name__)
 
 # --------------------------------------------------------------------------------------
 # Layer 0 column contract
 # --------------------------------------------------------------------------------------
-
-BASE_COLUMNS: Final[frozenset[str]] = frozenset(
-    {"ts_utc", "open", "high", "low", "close", "volume", "is_synthetic"}
-)
-"""Columns supplied by Layer 0. Readable by any transform, writable by none."""
 
 _BASE_DTYPES: Final[Mapping[str, pl.DataType]] = {
     "ts_utc": pl.Datetime(time_unit="us", time_zone="UTC"),
@@ -96,108 +98,34 @@ exercises the real computation rather than only its null prologue.
 
 # --------------------------------------------------------------------------------------
 # Provenance sealing — the precondition for consumer-side DIR-001 enforcement
+#
+# SealedFeature and SealedFeatureSet are defined in domain.feature_contracts, because
+# FeatureFrame must be able to carry a seal and domain may not import from features.
+# Re-exported here so a transform author has one import to remember.
 # --------------------------------------------------------------------------------------
 
-
-@dataclass(frozen=True, slots=True)
-class SealedFeature:
-    """Provenance record for one feature column.
-
-    Attributes:
-        column: Column name as it appears in the frame.
-        transform_name: Registry name of the producing transform.
-        transform_version: Version of the producing transform's logic.
-        spec_hash: Hash of the producing transform's full specification.
-        warmup_bars: The transform's own declared lookback.
-        causality: Whether the producer is fit for signal generation.
-    """
-
-    column: str
-    transform_name: str
-    transform_version: str
-    spec_hash: str
-    warmup_bars: int
-    causality: Causality
+__all__ = [
+    "BASE_COLUMNS",
+    "PROBE_MARGIN_BARS",
+    "TYPICAL_PRICE_EXPR",
+    "SealedFeature",
+    "SealedFeatureSet",
+    "TransformBase",
+    "base_column_dtype",
+    "build_transform",
+    "guard_column_name",
+    "register_transform",
+    "registered_transforms",
+    "safe_divide",
+    "seal_features",
+]
 
 
-@dataclass(frozen=True, slots=True)
-class SealedFeatureSet:
-    """The complete set of columns legitimately produced by registered transforms.
-
-    This is the artefact that makes DIR-001 checkable rather than aspirational. A value a
-    strategy derived for itself has no entry here; a value a transform produced does. Any
-    consumer-side guard needs exactly that distinction, and nothing else can supply it.
-
-    Attributes:
-        features: Provenance record per column.
-    """
-
-    features: Mapping[str, SealedFeature]
-
-    def __contains__(self, column: object) -> bool:
-        """Return whether a column was produced by a registered transform."""
-        return isinstance(column, str) and column in self.features
-
-    def require(self, column: str) -> SealedFeature:
-        """Return the provenance record for a column.
-
-        Args:
-            column: Column name.
-
-        Returns:
-            The sealed record.
-
-        Raises:
-            SchemaContractError: If the column carries no provenance. Raised rather than
-                returning ``None``, because a missing seal means the value's origin is
-                unknown, and an unknown origin is exactly what DIR-001 prohibits relying on.
-        """
-        if column not in self.features:
-            raise SchemaContractError(
-                "Column has no transform provenance; under DIR-001 a strategy may only "
-                "read features produced by a registered Layer 0.5 transform",
-                column=column,
-                sealed_columns=sorted(self.features),
-            )
-        return self.features[column]
-
-    def verify_frame_columns(self, columns: Iterable[str]) -> None:
-        """Assert every non-base column in a frame carries provenance.
-
-        Closes the hole where a column is added to a feature frame between the pipeline and
-        the engine — by a notebook, a debugging session, or a well-meaning helper. Such a
-        column would be indistinguishable from a real feature at the context boundary.
-
-        Args:
-            columns: Column names present in the frame.
-
-        Raises:
-            SchemaContractError: If an unsealed, non-base column is present.
-        """
-        unsealed: tuple[str, ...] = tuple(
-            column
-            for column in columns
-            if column not in BASE_COLUMNS and column not in self.features
-        )
-        if unsealed:
-            raise SchemaContractError(
-                "Feature frame contains columns produced by no registered transform",
-                unsealed_columns=list(unsealed),
-                sealed_columns=sorted(self.features),
-            )
-
-    @property
-    def non_causal_columns(self) -> tuple[str, ...]:
-        """Return sealed columns produced by non-causal control transforms."""
-        return tuple(
-            column
-            for column, record in sorted(self.features.items())
-            if record.causality is not Causality.CAUSAL
-        )
-
-
-def seal_features(transforms: Sequence[TransformBase]) -> SealedFeatureSet:
+def seal_features(transforms: Sequence[IFeatureTransform]) -> SealedFeatureSet:
     """Build the provenance record for a resolved transform set.
+
+    The types live in ``domain`` so :class:`FeatureFrame` can carry them; construction
+    lives here because only Layer 0.5 knows which transforms actually ran.
 
     Args:
         transforms: Transforms in execution order.
