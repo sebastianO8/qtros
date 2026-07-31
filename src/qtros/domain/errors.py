@@ -102,3 +102,29 @@ class SchemaContractError(DataError):
 
 class FingerprintError(DataError):
     """A dataset fingerprint could not be computed deterministically."""
+
+
+# --------------------------------------------------------------------------------------
+# Layer 0.5 — features
+# --------------------------------------------------------------------------------------
+
+
+class FeatureError(QtrosError):
+    """Base class for all Layer 0.5 failures."""
+
+
+class LookaheadDetected(FeatureError):
+    """A feature's value at bar *t* changed when data after *t* was removed.
+
+    This is Directive 1 failing, detected mechanically rather than by review. It is
+    always fatal: a frame carrying look-ahead bias must never reach a strategy, however
+    convenient that would be in the middle of a debugging session.
+    """
+
+
+class DetectorVerificationError(FeatureError):
+    """The lag audit failed to detect a known non-causal control.
+
+    Means the detector itself is broken, which invalidates every pass result from the
+    same run — not just the control's.
+    """

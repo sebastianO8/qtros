@@ -160,3 +160,129 @@ class OhlcViolation(StrEnum):
     NON_POSITIVE_PRICE = "NON_POSITIVE_PRICE"
     NEGATIVE_VOLUME = "NEGATIVE_VOLUME"
     NULL_PRICE = "NULL_PRICE"
+
+
+# --------------------------------------------------------------------------------------
+# Layer 1 / 3.5 — trading, orders, and execution
+# --------------------------------------------------------------------------------------
+
+
+class AssetClass(StrEnum):
+    """Broad instrument category. Drives contract maths, not strategy logic."""
+
+    FX_SPOT = "FX_SPOT"
+    FUTURES = "FUTURES"
+    EQUITY = "EQUITY"
+    CFD = "CFD"
+
+
+class Direction(StrEnum):
+    """Side of a position or order."""
+
+    LONG = "LONG"
+    SHORT = "SHORT"
+
+    @property
+    def sign(self) -> int:
+        """Return +1 for long and -1 for short.
+
+        Returns:
+            The directional multiplier used in every PnL calculation. Centralising it
+            here means the sign convention exists once rather than in each formula.
+        """
+        return 1 if self is Direction.LONG else -1
+
+    @property
+    def opposite(self) -> Direction:
+        """Return the opposing direction."""
+        return Direction.SHORT if self is Direction.LONG else Direction.LONG
+
+
+class OrderType(StrEnum):
+    """Order kind. Phase 1 simulates MARKET plus resting protective orders."""
+
+    MARKET = "MARKET"
+    LIMIT = "LIMIT"
+    STOP = "STOP"
+
+
+class ExitReason(StrEnum):
+    """Why a position was reduced or closed.
+
+    Recorded on every exit fill. Exit-reason mix is one of the fastest reads on whether
+    a strategy behaves as its mechanism claims: a breakout strategy exiting mostly on
+    SESSION_CLOSE is not doing what its author believes.
+    """
+
+    STOP_LOSS = "STOP_LOSS"
+    TAKE_PROFIT = "TAKE_PROFIT"
+    SIGNAL_EXIT = "SIGNAL_EXIT"
+    REVERSAL = "REVERSAL"
+    SESSION_CLOSE = "SESSION_CLOSE"
+    RISK_HALT = "RISK_HALT"
+    BACKTEST_END = "BACKTEST_END"
+
+
+class ExecutionTiming(StrEnum):
+    """When a decision taken on bar T is filled."""
+
+    NEXT_BAR_OPEN = "NEXT_BAR_OPEN"
+    """Fill at bar T+1's open. The Phase 1 default and the only defensible one for a
+    decision that used bar T's close."""
+
+    SAME_BAR_CLOSE = "SAME_BAR_CLOSE"
+    """Fill at bar T's close. Optimistic: it assumes the close was both observable and
+    tradeable at the same instant. Permitted, stamped in the manifest, and watermarked
+    in every report that uses it."""
+
+
+class PathAssumption(StrEnum):
+    """Assumed order of intrabar price events (ARCH-001 C-1).
+
+    OHLC data does not record whether the high or the low came first, so a bar in which
+    both a stop and a target lie inside the range is genuinely ambiguous. The assumption
+    is declared rather than resolved by heuristic.
+    """
+
+    ADVERSE_FIRST = "ADVERSE_FIRST"
+    """Assume the adverse extreme is reached first. Pessimistic, deterministic, and the
+    approved Phase 1 default."""
+
+    FAVOURABLE_FIRST = "FAVOURABLE_FIRST"
+    """Assume the favourable extreme is reached first. Flatters results; available only
+    for sensitivity analysis and watermarked wherever used."""
+
+
+class ZeroVolumePolicy(StrEnum):
+    """How to treat an order that would fill on a bar reporting zero volume."""
+
+    REJECT_FILL = "REJECT_FILL"
+    ALLOW_FILL = "ALLOW_FILL"
+
+
+class SubMinLotPolicy(StrEnum):
+    """How to treat a size that rounds below the instrument's minimum lot."""
+
+    REJECT_ORDER = "REJECT_ORDER"
+    """Reject explicitly. A zero-quantity fill is a trade that did not happen being
+    recorded as though it did."""
+
+    ROUND_UP = "ROUND_UP"
+    """Raise to the minimum lot. Silently increases risk beyond the sizing decision, so
+    it is never the default."""
+
+
+class OrderRejectionCode(StrEnum):
+    """Enumerated reason an order was not filled.
+
+    Enumerated rather than free text so rejections are aggregatable: a rising count of
+    ZERO_VOLUME_BAR rejections is a data problem, while a rising count of
+    BELOW_MINIMUM_LOT is a sizing problem, and a free-text field would hide both.
+    """
+
+    ZERO_VOLUME_BAR = "ZERO_VOLUME_BAR"
+    BELOW_MINIMUM_LOT = "BELOW_MINIMUM_LOT"
+    NON_POSITIVE_QUANTITY = "NON_POSITIVE_QUANTITY"
+    NO_EXECUTION_BAR = "NO_EXECUTION_BAR"
+    INSTRUMENT_MISMATCH = "INSTRUMENT_MISMATCH"
+    MARKET_CLOSED = "MARKET_CLOSED"
