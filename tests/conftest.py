@@ -14,6 +14,8 @@ Fixture design rules for this project:
 
 from __future__ import annotations
 
+from hypothesis import HealthCheck, settings  # new addition reccomended to stop failtures during pytest runs 8/1/26
+
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
@@ -46,13 +48,19 @@ reason it was written to check."""
 EPOCH: datetime = datetime(2024, 1, 2, 0, 0, tzinfo=UTC)
 BAR_INTERVAL: timedelta = Timeframe.M5.duration
 
+# Globally suppress the function_scoped_fixture health check
+settings.register_profile(
+    "qtros_profile",
+    suppress_health_check=[HealthCheck.function_scoped_fixture]
+)
+settings.load_profile("qtros_profile")
 
 # --------------------------------------------------------------------------------------
 # Instruments
 # --------------------------------------------------------------------------------------
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def instrument() -> InstrumentSpec:
     """Return an AUD/JPY specification with hand-checkable contract arithmetic.
 

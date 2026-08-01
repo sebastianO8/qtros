@@ -28,23 +28,30 @@ ZERO: Final[Decimal] = Decimal("0")
 class FrictionCharges:
     """Cost components for one fill.
 
+    Spread and slippage are returned in **price units**, not cash. They are embedded in
+    the fill price rather than deducted from the balance, which is how they actually
+    occur: a buyer does not pay mid and then receive a spread invoice, they pay the ask.
+    The broker converts them to cash *after* tick rounding, so the reported cost equals
+    the price degradation that really happened rather than the degradation that was
+    intended.
+
+    Commission is genuine cash and is charged separately, because it genuinely is a
+    separate debit.
+
     Attributes:
-        price_adjustment: Total adverse move applied to the reference price, in price
-            units. Always non-negative; the sign is applied by direction.
-        spread_cost: Cash cost of crossing the spread.
-        slippage_cost: Cash cost of adverse price impact beyond the spread.
-        commission: Cash commission charged.
+        spread_price: Adverse price move attributable to crossing the spread.
+        slippage_price: Adverse price move beyond the spread.
+        commission: Cash commission charged for this side.
     """
 
-    price_adjustment: Decimal
-    spread_cost: Decimal
-    slippage_cost: Decimal
+    spread_price: Decimal
+    slippage_price: Decimal
     commission: Decimal
 
     @property
-    def total(self) -> Decimal:
-        """Return the sum of all cash costs."""
-        return self.spread_cost + self.slippage_cost + self.commission
+    def price_adjustment(self) -> Decimal:
+        """Return the total adverse price move before tick rounding."""
+        return self.spread_price + self.slippage_price
 
 
 @runtime_checkable
@@ -117,33 +124,27 @@ class StandardFrictionModel:
         """Return the cost components for one fill.
 
         Args:
-            direction: Side of the fill.
+            direction: Side of the fill. Unused: this model's costs are symmetric, and the
+                broker applies the sign.
             quantity: Lots transacted.
             reference_price: Price before friction, normally the execution bar's open.
             bar: Execution bar. Unused by this model but part of the protocol, since a
-                volatility-scaled slippage model needs it and changing the signature
-                later would touch every call site.
+                volatility-scaled slippage model needs it and widening the signature later
+                would touch every call site.
             spec: Contract specification.
 
         Returns:
-            The itemised charges.
+            Spread and slippage in price units, and commission in cash.
         """
-        del bar, reference_price  # Fixed-cost model; retained for protocol compatibility.
+        del bar, reference_price, direction  # Fixed, symmetric model; retained for protocol.
 
         spread_ticks: Decimal = (
             spec.typical_spread_ticks
             if self.spread_ticks_override is None
             else self.spread_ticks_override
         )
-        half_spread: Decimal = (spread_ticks * spec.tick_size) / Decimal("2")
-        slippage: Decimal = self.slippage_ticks * spec.tick_size
-
-        del direction  # Costs are symmetric; the sign is applied by the broker.
-
-        contract_units: Decimal = quantity * spec.contract_size
         return FrictionCharges(
-            price_adjustment=half_spread + slippage,
-            spread_cost=half_spread * contract_units,
-            slippage_cost=slippage * contract_units,
+            spread_price=(spread_ticks * spec.tick_size) / Decimal("2"),
+            slippage_price=self.slippage_ticks * spec.tick_size,
             commission=spec.commission_for(quantity),
         )
