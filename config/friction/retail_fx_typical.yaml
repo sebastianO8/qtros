@@ -1,0 +1,8 @@
+# Directive 2 / ASS-003 — costs itemised, never netted. Zero friction would need acknowledge_zero_friction.
+schema_version: 1
+friction_id: retail_fx_typical
+commission_model: PER_LOT
+commission_value: "6"
+spread_model: INSTRUMENT_TYPICAL
+slippage_model: FIXED_TICKS
+slippage_value: "0.5"

@@ -1,0 +1,33 @@
+# ARCH-002 §4.3 / D-3 — FX week: Sunday 17:00 to Friday 17:00 New York. STRICT_RAISE on DST.
+schema_version: 1
+calendar_id: fx_sunday_open
+week_open:
+  weekday: 6
+  time_local: "17:00:00"
+  timezone: America/New_York
+week_close:
+  weekday: 4
+  time_local: "17:00:00"
+  timezone: America/New_York
+sessions:
+  - name: asian
+    open_local: "09:00:00"
+    close_local: "15:00:00"
+    timezone: Asia/Tokyo
+    weekdays: [0, 1, 2, 3, 4]
+  - name: london
+    open_local: "08:00:00"
+    close_local: "16:30:00"
+    timezone: Europe/London
+    weekdays: [0, 1, 2, 3, 4]
+  - name: new_york
+    open_local: "08:00:00"
+    close_local: "17:00:00"
+    timezone: America/New_York
+    weekdays: [0, 1, 2, 3, 4]
+holidays:
+  - 2024-01-01
+  - 2024-12-25
+  - 2025-01-01
+  - 2025-12-25
+dst_policy: STRICT_RAISE

@@ -1,0 +1,16 @@
+# Cross-asset validation instrument (Constitution §7 lesson).
+schema_version: 1
+instrument_id: CADJPY
+display_name: "Canadian Dollar / Japanese Yen"
+asset_class: FX_SPOT
+base_currency: CAD
+quote_currency: JPY
+tick_size: "0.001"
+contract_size: "100000"
+min_lot: "0.01"
+lot_step: "0.01"
+typical_spread_ticks: "2.2"
+commission_per_lot: "6"
+calendar_id: fx_sunday_open
+rollover_time_local: "17:00:00"
+rollover_tz: America/New_York

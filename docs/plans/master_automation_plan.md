@@ -113,7 +113,21 @@ Supplementary PI rulings from the same message:
 
 ## 2. Verified baseline
 
-### 2.1 After the ARCH-008 build pass (2026-10-03, branch `feat/arch-008`, uncommitted)
+### 2.0 After the Day 6 Phase 1 completion pass (2026-10-03, branch `feat/arch-008`)
+
+| Check | Result |
+|---|---|
+| `python scripts/check_sources.py` | 48 tracked modules + 15 package markers current (exit 0) |
+| `python -m pytest -q` | 268 passed (exit 0) |
+| End-to-end | `config/backtest/phase1_mvp.yaml` → loader → features → run → analytics → `results/{run_id}/` exercised by `tests/test_builder.py`, `tests/test_analytics.py`, `tests/test_persistence.py` |
+
+Delivered: `domain/timekeeping/` (SessionCalendar, DST-strict), `domain/manifest.py`, config families `calendars/` and `features/`, the committed `config/` tree, `engine/builder.py` (config → run graph), `analytics/` (trade statistics, C-5 Sharpe, C-1 drawdown, C-3 concentration, attribution, gate verdicts), `persistence/` (immutable `results/{run_id}/` writer with manifest, resolved config, Parquet ledgers). ASS-010 recorded. PI rulings applied: sizing basis closed equity (ratified); `PER_NOTIONAL` / `ATR_FRACTION` stay schema-only (they did not block resolution).
+
+Fix outside the new code: `features/transforms/{atr,zscore,_control}.py` passed polars' deprecated `min_periods`; under `filterwarnings = error` that raised on the first real pipeline run. Renamed to `min_samples` (polars ≥ 1.21). No logic change.
+
+Not built in Phase 1: `cli.py` (so import-linter still cannot run), the HTML report render (`analytics/render/`), the derived registry export (`docs/registry.md`), Layer 0 → builder wiring for a real DuckDB-backed run (the builder takes a bar frame; `data/` produces one, but no CLI joins them yet).
+
+### 2.1 After the ARCH-008 build pass (2026-10-03, branch `feat/arch-008`)
 
 | Check | Result |
 |---|---|
@@ -167,7 +181,8 @@ The hard gate under A1 is therefore `check_sources.py` + `pytest` only. Ruff, my
 | 1 | ✅ `risk/`: MaxLot + MaxNotional rules (G-1), fixed-fractional sizer, adverse-first halt (G-2), sole approval minter | A1 | A5 #2 |
 | 2 | ✅ `alpha/`: `StrategyBase`, `register_strategy` (D-4), `verify_feature_provenance` (G-4), `vwap_pullback` 1.0.0 | A1 | A5 #3 |
 | 3 | ✅ `engine/backtester.py`: seven-step G-3 loop, protective levels, reconciliation inside `run()` | A1 | A5 #4 |
-| 4 | Toolchain cleanup pass (ruff/mypy/import-linter to green) once `cli.py` exists | A1 + full toolchain | A5 #5 |
+| 4 | ✅ Timekeeping, config tree, builder, analytics, persistence (Day 6) | A1 | A5 #4 |
+| 5 | `cli.py` + DuckDB-backed `qtros run`; HTML render; registry export; then the toolchain cleanup pass | A1 + full toolchain | A5 #5 |
 
 Each step begins by re-running the gate on the untouched tree, so a red inherited from outside the session is reported rather than blamed on the step.
 

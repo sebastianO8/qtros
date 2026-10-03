@@ -17,9 +17,11 @@ from pydantic import ValidationError
 
 from qtros.configuration import (
     BacktestConfig,
+    CalendarConfig,
     ConfigLoader,
     DataSourceConfig,
     ExecutionConfig,
+    FeatureSetConfig,
     FrictionConfig,
     InstrumentConfig,
     ProvenanceClass,
@@ -108,6 +110,25 @@ FRICTION: dict[str, Any] = {
 
 REPORTING: dict[str, Any] = {"reporting_id": "constitution_v3_2"}
 
+CALENDAR: dict[str, Any] = {
+    "calendar_id": "fx_sunday_open",
+    "week_open": {"weekday": 6, "time_local": "17:00:00", "timezone": "America/New_York"},
+    "week_close": {"weekday": 4, "time_local": "17:00:00", "timezone": "America/New_York"},
+    "sessions": [
+        {"name": "asian", "open_local": "09:00:00", "close_local": "15:00:00",
+         "timezone": "Asia/Tokyo", "weekdays": [0, 1, 2, 3, 4]},
+    ],
+    "holidays": ["2024-01-01", "2024-12-25"],
+}
+
+FEATURES: dict[str, Any] = {
+    "feature_set_id": "baseline_v1",
+    "transforms": [
+        {"transform": "true_range"},
+        {"transform": "atr", "parameters": {"period": 14, "output_column": "atr_14"}},
+    ],
+}
+
 BACKTEST: dict[str, Any] = {
     "run_label": "phase1-mvp-audjpy-baseline",
     "instrument_id": "AUDJPY",
@@ -152,6 +173,8 @@ def resolved() -> ResolvedBacktestConfig:
         risk=RiskLimitsConfig(**RISK),
         friction=FrictionConfig(**FRICTION),
         reporting=ReportingConfig(**REPORTING),
+        calendar=CalendarConfig(**CALENDAR),
+        features=FeatureSetConfig(**FEATURES),
     )
 
 
@@ -163,6 +186,12 @@ def _yaml(mapping: dict[str, Any], indent: int = 0) -> str:
         if isinstance(value, dict):
             lines.append(f"{pad}{key}:")
             lines.append(_yaml(value, indent + 2))
+        elif isinstance(value, list) and value and isinstance(value[0], dict):
+            lines.append(f"{pad}{key}:")
+            for item in value:
+                body = _yaml(item, indent + 4).splitlines()
+                lines.append(f"{pad}  - {body[0].strip()}")
+                lines.extend(body[1:])
         elif isinstance(value, list):
             lines.append(f"{pad}{key}: [{', '.join(str(v) for v in value)}]")
         elif isinstance(value, bool):
@@ -184,6 +213,8 @@ def config_root(tmp_path: Path) -> Path:
         "risk/phase1_baseline.yaml": RISK,
         "friction/retail_fx_typical.yaml": FRICTION,
         "reporting/constitution_v3_2.yaml": REPORTING,
+        "calendars/fx_sunday_open.yaml": CALENDAR,
+        "features/baseline_v1.yaml": FEATURES,
         "backtest/phase1_mvp.yaml": BACKTEST,
     }
     for relative, mapping in files.items():

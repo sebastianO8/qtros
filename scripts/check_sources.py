@@ -72,6 +72,18 @@ REQUIRED: dict[str, tuple[str, ...]] = {
     "qtros/risk/engine.py": ("RiskEngine", "RiskEngine.on_bar_close", "RiskEngine.approve", "RiskEvent"),
     "qtros/alpha/base.py": ("StrategyBase", "register_strategy", "verify_feature_provenance"),
     "qtros/engine/backtester.py": ("Backtester", "Backtester._step", "BacktestResult"),
+    # ARCH-009 — timekeeping, wiring, Layer 5, persistence
+    "qtros/domain/timekeeping/calendar.py": ("SessionCalendar", "SessionCalendar.trading_day_for", "SessionCalendar.classify_gap", "localize"),
+    "qtros/domain/manifest.py": ("RunManifest",),
+    "qtros/configuration/models/calendar.py": ("CalendarConfig", "CalendarConfig.to_calendar"),
+    "qtros/configuration/models/features.py": ("FeatureSetConfig", "TransformRefConfig"),
+    "qtros/engine/builder.py": ("build_run", "compute_features", "run_from_config", "RunComponents"),
+    "qtros/analytics/metrics.py": ("trade_statistics", "sharpe_ratio", "drawdown", "daily_equity"),
+    "qtros/analytics/concentration.py": ("concentration", "ConcentrationResult"),
+    "qtros/analytics/attribution.py": ("attribute", "friction_attribution"),
+    "qtros/analytics/gates.py": ("evaluate_gates", "GateReport"),
+    "qtros/persistence/writer.py": ("RunWriter", "RunWriter.write", "run_id_for"),
+    "qtros/persistence/serialize.py": ("to_jsonable",),
 }
 
 # Source text that must appear, for changes that add no new top-level symbol.
@@ -83,16 +95,7 @@ REQUIRED_TEXT: dict[str, tuple[tuple[str, str], ...]] = {
     "qtros/execution/friction.py": (
         ("spread_price", "ARCH-006 price-embedded friction (ASS-006)"),
     ),
-    "qtros/features/transforms/atr.py": (
-        ("TransformBase", "ARCH-007 transform scaffold migration"),
-    ),
     "qtros/features/transforms/vwap.py": (
-        ("TransformBase", "ARCH-007 transform scaffold migration"),
-    ),
-    "qtros/features/transforms/zscore.py": (
-        ("TransformBase", "ARCH-007 transform scaffold migration"),
-    ),
-    "qtros/features/transforms/_control.py": (
         ("TransformBase", "ARCH-007 transform scaffold migration"),
     ),
     "qtros/features/pipeline.py": (
@@ -109,6 +112,18 @@ REQUIRED_TEXT: dict[str, tuple[tuple[str, str], ...]] = {
         ("verify_feature_provenance", "G-4 consumer-side DIR-001 check"),
         ("_resolve_protective_exit", "G-3 step 2 resting exits before the strategy"),
     ),
+    "qtros/features/transforms/atr.py": (
+        ("TransformBase", "ARCH-007 transform scaffold migration"),
+        ("min_samples=", "polars >= 1.21 rolling keyword; min_periods raises under filterwarnings=error"),
+    ),
+    "qtros/features/transforms/zscore.py": (
+        ("TransformBase", "ARCH-007 transform scaffold migration"),
+        ("min_samples=", "polars >= 1.21 rolling keyword"),
+    ),
+    "qtros/features/transforms/_control.py": (
+        ("TransformBase", "ARCH-007 transform scaffold migration"),
+        ("min_samples=", "polars >= 1.21 rolling keyword"),
+    ),
 }
 
 EXPECTED_INIT_FILES: tuple[str, ...] = (
@@ -124,6 +139,9 @@ EXPECTED_INIT_FILES: tuple[str, ...] = (
     "qtros/risk/__init__.py",
     "qtros/alpha/__init__.py",
     "qtros/alpha/strategies/__init__.py",
+    "qtros/domain/timekeeping/__init__.py",
+    "qtros/analytics/__init__.py",
+    "qtros/persistence/__init__.py",
 )
 
 

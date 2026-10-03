@@ -1,0 +1,24 @@
+# Feature set referenced by backtest.feature_set_id. Transforms resolve by registry name (D-4).
+# Output columns are named explicitly so strategy parameters can reference them by name.
+schema_version: 1
+feature_set_id: baseline_v1
+transforms:
+  - transform: true_range
+  - transform: atr
+    parameters:
+      period: 14
+      method: SMA
+      output_column: atr_14
+  - transform: anchored_vwap
+    parameters:
+      anchor_timezone: Asia/Tokyo
+      output_column: vwap_session
+      session_column: vwap_session_index
+  - transform: rolling_zscore
+    parameters:
+      source_column: close
+      window: 50
+      output_column: close_zscore_50
+lag_policy: DEFER_TO_ENGINE
+audit_probe_count: 25
+audit_seed: 0

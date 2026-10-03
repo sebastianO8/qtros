@@ -1,0 +1,14 @@
+# Phase 2 prop-firm evaluation profile. Schema exists now; daily rules are not enforced in Phase 1.
+schema_version: 1
+risk_limits_id: propfirm_eval
+max_drawdown_pct: "8"
+max_drawdown_basis: MARK_TO_MARKET
+risk_per_trade_pct: "0.5"
+atr_stop_multiple: "2"
+atr_lookback_bars: 14
+max_concurrent_positions: 1
+max_lot: "2"
+max_notional_pct: "200"
+max_daily_loss_pct: "4"
+daily_consistency_pct: "50"
+on_limit_breach: HALT_SESSION

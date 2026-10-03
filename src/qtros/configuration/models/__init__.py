@@ -17,7 +17,9 @@ from qtros.configuration.models.base import (
     provenance,
     reject_float_input,
 )
+from qtros.configuration.models.calendar import CalendarConfig, SessionWindowConfig, WeekBoundaryConfig
 from qtros.configuration.models.execution import ExecutionConfig
+from qtros.configuration.models.features import FeatureSetConfig, TransformRefConfig
 from qtros.configuration.models.friction import FrictionConfig
 from qtros.configuration.models.instrument import InstrumentConfig
 from qtros.configuration.models.reporting import (
@@ -32,11 +34,13 @@ from qtros.configuration.models.strategy import SignificancePolicyConfig, Strate
 
 __all__ = [
     "BacktestConfig",
+    "CalendarConfig",
     "ColumnMappingConfig",
     "ConcentrationConfig",
     "DataSourceConfig",
     "DateRangeConfig",
     "ExecutionConfig",
+    "FeatureSetConfig",
     "FrictionConfig",
     "GateThresholdsConfig",
     "InstrumentConfig",
@@ -46,12 +50,15 @@ __all__ = [
     "ReportingConfig",
     "RiskLimitsConfig",
     "RuntimeConfig",
+    "SessionWindowConfig",
     "SharpeConventionConfig",
     "SignificancePolicyConfig",
     "StrategyConfig",
     "StrategyRef",
     "StrictDecimal",
     "TimeZoneName",
+    "TransformRefConfig",
+    "WeekBoundaryConfig",
     "provenance",
     "reject_float_input",
 ]

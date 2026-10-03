@@ -398,3 +398,14 @@ class RiskEventKind(StrEnum):
 
     PEAK_UPDATED = "PEAK_UPDATED"
     """Running peak equity advanced. Debug-level; not written in Phase 1."""
+
+
+class GateVerdict(StrEnum):
+    """Outcome of one constitutional gate check (Layer 5)."""
+
+    PASS = "PASS"
+    FAIL = "FAIL"
+    INSUFFICIENT_SAMPLE = "INSUFFICIENT_SAMPLE"
+    """The metric was computed but the trade count is below the significance floor."""
+    NOT_EVALUATED = "NOT_EVALUATED"
+    """The gate needs inputs a single in-sample run cannot provide (OOS decay, WFO)."""

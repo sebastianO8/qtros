@@ -88,6 +88,6 @@ class CenteredMeanControl(TransformBase):
         """
         half: int = self._window // 2
         trailing: pl.Expr = pl.col(self._source).rolling_mean(
-            window_size=self._window, min_periods=self._window
+            window_size=self._window, min_samples=self._window
         )
         return frame.with_columns(trailing.shift(-half).alias(self._column))

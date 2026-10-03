@@ -1,0 +1,24 @@
+# ARCH-002 §4.4 — Dukascopy CSV export, GMT timestamps labelled at bar open. Never inferred.
+schema_version: 1
+source_id: dukascopy_m5
+instrument_id: AUDJPY
+timeframe: M5
+root_path: ./data_lake/raw/audjpy_m5
+glob_pattern: "*.csv"
+file_format: CSV
+columns:
+  timestamp: "Gmt time"
+  open: Open
+  high: High
+  low: Low
+  close: Close
+  volume: Volume
+timestamp_format: "%d.%m.%Y %H:%M:%S.%f"
+timestamp_policy: DECLARED_FIXED_OFFSET
+declared_offset_minutes: 0
+dst_policy: STRICT_RAISE
+timestamps_are_bar_open: true
+csv_separator: ","
+has_header: true
+recursive_glob: false
+max_reject_ratio: "0.001"

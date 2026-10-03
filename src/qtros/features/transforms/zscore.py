@@ -93,9 +93,9 @@ class RollingZScore(TransformBase):
         """
         source: pl.Expr = pl.col(self._source)
         mean: pl.Expr = source.rolling_mean(
-            window_size=self._window, min_periods=self._min_periods
+            window_size=self._window, min_samples=self._min_periods
         )
         deviation: pl.Expr = source.rolling_std(
-            window_size=self._window, min_periods=self._min_periods, ddof=1
+            window_size=self._window, min_samples=self._min_periods, ddof=1
         )
         return frame.with_columns(safe_divide(source - mean, deviation).alias(self._column))

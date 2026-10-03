@@ -1,0 +1,23 @@
+# ARCH-002 §4.5 — referenced by strategy_id + strategy_version, never by import path (D-4).
+# The significance policy is run-affecting (G-5): changing the tier mints a new experiment.
+schema_version: 1
+strategy_id: vwap_pullback
+strategy_version: "1.0.0"
+experiment_id: AUDJPY_VWAP_PULLBACK
+mechanism_hypothesis: >-
+  During the Tokyo session AUD/JPY is dominated by exporter and option-hedging flow that
+  leans against short-term extensions away from the session VWAP; a close more than 1.5
+  standard deviations below VWAP therefore tends to revert toward it before the London open.
+supported_timeframes: [M5, M15]
+parameters:
+  vwap_column: vwap_session
+  zscore_column: close_zscore_50
+  atr_column: atr_14
+  entry_z: "-1.5"
+  exit_z: "0"
+  stop_atr: "2"
+  target_atr: "3"
+significance:
+  tier: STANDARD
+  min_trades: 400
+declared_at_utc: "2026-10-03T00:00:00+00:00"

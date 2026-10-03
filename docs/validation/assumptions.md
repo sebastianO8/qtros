@@ -502,9 +502,55 @@ different basis (for example end-of-day balance); Phase 2 daily-loss and consist
 
 ---
 
+## ASS-010 — Concentration is measured as the top-N share of gross profit
+
+| Field | Value |
+|---|---|
+| **Status** | Implemented 2026-10-03 per ARCH-001 C-3; definition awaiting PI confirmation |
+| **Severity if wrong** | **Medium** — changes which strategies the C-3 gate and kill criterion catch |
+| **Implementation** | `analytics/concentration.py` → `concentration`, `_evaluate` |
+| **Verified by** | `tests/test_analytics.py::TestConcentration` |
+
+### Statement
+
+For a period (a quarter, or the lifetime of the run), the concentration ratio is
+
+```
+top_n_share_pct = Σ net_pnl of the N largest winning trades / Σ net_pnl of all winning trades × 100
+```
+
+The denominator is **gross profit** — winners only — not net profit and not the sum of
+absolute PnL. A period with no winning trade is **not evaluable** and is reported as such
+rather than passing by default. The boundary rule (`>` versus `>=`) is an explicit
+configuration field, tested in both directions.
+
+Trades are the unit (C-4): a winner exited in three parts is one trade, so partial exits
+cannot dilute the ratio.
+
+### Rationale
+
+Net profit as a denominator makes the ratio explode or change sign in a losing period and
+answers a different question ("did five trades carry the quarter?") than the one C-3 asks
+("is the edge a handful of outliers?"). Gross profit keeps the ratio in [0, 100] and
+monotone in the outliers' size.
+
+### Failure mode if wrong
+
+A net-profit denominator would pass a strategy whose losses happen to offset its outliers
+and fail a strategy with a uniformly distributed edge in a mildly negative quarter. Both
+are plausible-looking verdicts that invert the test's intent.
+
+### Review trigger
+
+PI confirmation of the definition; any change to the constitution's §C-3 wording; Phase 2
+multi-instrument pooling, where the period must be defined per instrument or pooled.
+
+---
+
 ## Change log
 
 | Date | Change |
 |---|---|
 | ARCH-006 | Registry created. ASS-001 … ASS-005 recorded as ratified. ASS-006 and ASS-007 raised from findings during test authoring. |
 | 2026-10-03 | ASS-008 (G-1 exposure caps) and ASS-009 (G-2 adverse-first drawdown halt) recorded as ratified. |
+| 2026-10-03 | ASS-010 (concentration denominator) recorded; sizing basis closed-equity ratified by PI (see `risk/sizing.py`). |

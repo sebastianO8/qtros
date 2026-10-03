@@ -1,0 +1,28 @@
+# ARCH-002 §4.8 / D-5 — composition by reference. The loader flattens this into config_resolved.yaml.
+schema_version: 1
+run_label: phase1-mvp-audjpy-baseline
+instrument_id: AUDJPY
+source_id: dukascopy_m5
+date_range:
+  start: 2022-01-01
+  end: 2024-12-31
+feature_set_id: baseline_v1
+strategy_ref:
+  strategy_id: vwap_pullback
+  strategy_version: "1.0.0"
+risk_ref: phase1_baseline
+friction_ref: retail_fx_typical
+execution:
+  timing: NEXT_BAR_OPEN
+  path_assumption: ADVERSE_FIRST
+  zero_volume_policy: REJECT_FILL
+  sub_min_lot_policy: REJECT_ORDER
+reporting_ref: constitution_v3_2
+rng_seed: 0
+initial_cash: "100000"
+paths:
+  results_root: ./results
+  warehouse: ./data_lake/warehouse/qtros.duckdb
+runtime:
+  log_level: INFO
+  log_format: json

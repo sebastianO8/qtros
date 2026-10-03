@@ -25,10 +25,12 @@ from qtros.configuration.loader import (
 )
 from qtros.configuration.models import (
     BacktestConfig,
+    CalendarConfig,
     ConcentrationConfig,
     DataSourceConfig,
     DateRangeConfig,
     ExecutionConfig,
+    FeatureSetConfig,
     FrictionConfig,
     GateThresholdsConfig,
     InstrumentConfig,
@@ -55,12 +57,14 @@ from qtros.configuration.registry import (
 __all__ = [
     "CONFIG_FAMILIES",
     "BacktestConfig",
+    "CalendarConfig",
     "ConcentrationConfig",
     "ConfigHashes",
     "ConfigLoader",
     "DataSourceConfig",
     "DateRangeConfig",
     "ExecutionConfig",
+    "FeatureSetConfig",
     "FrictionConfig",
     "GateThresholdsConfig",
     "InstrumentConfig",

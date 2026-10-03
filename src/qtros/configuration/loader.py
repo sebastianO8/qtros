@@ -22,6 +22,8 @@ from pydantic import Field, ValidationError
 from qtros.configuration.hashing import ConfigHashes, compute_hashes
 from qtros.configuration.models.backtest import BacktestConfig
 from qtros.configuration.models.base import QtrosConfig
+from qtros.configuration.models.calendar import CalendarConfig
+from qtros.configuration.models.features import FeatureSetConfig
 from qtros.configuration.models.friction import FrictionConfig
 from qtros.configuration.models.instrument import InstrumentConfig
 from qtros.configuration.models.reporting import ReportingConfig
@@ -40,6 +42,8 @@ CONFIG_FAMILIES: Final[Mapping[str, str]] = {
     "risk": "risk",
     "friction": "friction",
     "reporting": "reporting",
+    "calendar": "calendars",
+    "features": "features",
 }
 """Family name to directory under the config root."""
 
@@ -70,6 +74,8 @@ class ResolvedBacktestConfig(QtrosConfig):
         risk: Resolved risk limits.
         friction: Resolved friction model parameters.
         reporting: Resolved scoring parameters.
+        calendar: Resolved session calendar, from the instrument's ``calendar_id``.
+        features: Resolved feature set, from the backtest's ``feature_set_id``.
     """
 
     backtest: BacktestConfig
@@ -79,6 +85,8 @@ class ResolvedBacktestConfig(QtrosConfig):
     risk: RiskLimitsConfig
     friction: FrictionConfig
     reporting: ReportingConfig = Field()
+    calendar: CalendarConfig
+    features: FeatureSetConfig
 
     def hashes(self) -> ConfigHashes:
         """Return the three Directive 10 hashes for this resolved configuration."""
@@ -308,6 +316,8 @@ class ConfigLoader:
         risk = self.load_one("risk", backtest.risk_ref, RiskLimitsConfig)
         friction = self.load_one("friction", backtest.friction_ref, FrictionConfig)
         reporting = self.load_one("reporting", backtest.reporting_ref, ReportingConfig)
+        calendar = self.load_one("calendar", instrument.calendar_id, CalendarConfig)
+        features = self.load_one("features", backtest.feature_set_id, FeatureSetConfig)
 
         if source.instrument_id != instrument.instrument_id:
             raise ConfigurationError(
@@ -329,6 +339,8 @@ class ConfigLoader:
             risk=risk,
             friction=friction,
             reporting=reporting,
+            calendar=calendar,
+            features=features,
         )
 
     def load_backtest(self, identifier: str) -> ResolvedBacktestConfig:

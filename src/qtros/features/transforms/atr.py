@@ -171,8 +171,8 @@ class AverageTrueRange(TransformBase):
         """
         source: pl.Expr = pl.col(self._source)
         smoothed: pl.Expr = (
-            source.rolling_mean(window_size=self._period, min_periods=self._period)
+            source.rolling_mean(window_size=self._period, min_samples=self._period)
             if self._method is AtrMethod.SMA
-            else source.ewm_mean(alpha=1.0 / self._period, adjust=False, min_periods=self._period)
+            else source.ewm_mean(alpha=1.0 / self._period, adjust=False, min_samples=self._period)
         )
         return frame.with_columns(smoothed.alias(self._column))
