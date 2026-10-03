@@ -22,16 +22,17 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import StrEnum
-from typing import Final, Protocol, runtime_checkable
-
-import polars as pl
+from typing import TYPE_CHECKING, Final, Protocol, runtime_checkable
 
 from qtros.domain.errors import SchemaContractError
 
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Mapping, Sequence
+    from datetime import datetime
+
+    import polars as pl
 
 BASE_COLUMNS: Final[frozenset[str]] = frozenset(
     {"ts_utc", "open", "high", "low", "close", "volume", "is_synthetic"}

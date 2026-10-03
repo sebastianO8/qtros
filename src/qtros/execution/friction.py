@@ -14,12 +14,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Final, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Final, Protocol, runtime_checkable
 
-from qtros.domain.enums import Direction
 from qtros.domain.errors import ConfigurationError
-from qtros.domain.instrument import InstrumentSpec
-from qtros.domain.market import BarData
+
+if TYPE_CHECKING:
+    from qtros.domain.enums import Direction
+    from qtros.domain.instrument import InstrumentSpec
+    from qtros.domain.market import BarData
 
 ZERO: Final[Decimal] = Decimal("0")
 

@@ -20,15 +20,12 @@ position is managed to its conclusion rather than force-flattened at an invented
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime
 from decimal import Decimal
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 import structlog
 
-from qtros.configuration.models.risk import RiskLimitsConfig
 from qtros.domain.enums import (
     BreachAction,
     Direction,
@@ -38,15 +35,21 @@ from qtros.domain.enums import (
     SubMinLotPolicy,
 )
 from qtros.domain.errors import ConfigurationError
-from qtros.domain.execution import EquitySnapshot, PositionState
-from qtros.domain.identifiers import SequentialIdFactory, TradeId
-from qtros.domain.instrument import InstrumentSpec
-from qtros.domain.market import BarData
 from qtros.domain.money import quantize_money
 from qtros.domain.orders import RISK_APPROVAL, ApprovedOrder, RejectedIntent, TradeIntent
-from qtros.domain.signals import PortfolioView
 from qtros.risk.limits import IRiskRule, MaxLotRule, MaxNotionalExposureRule
 from qtros.risk.sizing import FixedFractionalSizer, ISizer
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from datetime import datetime
+
+    from qtros.configuration.models.risk import RiskLimitsConfig
+    from qtros.domain.execution import EquitySnapshot, PositionState
+    from qtros.domain.identifiers import SequentialIdFactory, TradeId
+    from qtros.domain.instrument import InstrumentSpec
+    from qtros.domain.market import BarData
+    from qtros.domain.signals import PortfolioView
 
 _LOGGER: Final = structlog.get_logger(__name__)
 
@@ -254,8 +257,14 @@ class RiskEngine:
             self._halted = False
             self._halt_session = None
             event = RiskEvent(
-                RiskEventKind.HALT_RELEASED, bar.ts_utc, bar_index, self._peak, extreme,
-                drawdown, fraction, "session-scoped halt lapsed at session boundary",
+                RiskEventKind.HALT_RELEASED,
+                bar.ts_utc,
+                bar_index,
+                self._peak,
+                extreme,
+                drawdown,
+                fraction,
+                "session-scoped halt lapsed at session boundary",
             )
             self._events.append(event)
             _LOGGER.info("risk.halt_released", bar_index=bar_index, session=session_index)
@@ -264,8 +273,13 @@ class RiskEngine:
             self._halted = True
             self._halt_session = session_index
             event = RiskEvent(
-                RiskEventKind.DRAWDOWN_HALT, bar.ts_utc, bar_index, self._peak, extreme,
-                drawdown, fraction,
+                RiskEventKind.DRAWDOWN_HALT,
+                bar.ts_utc,
+                bar_index,
+                self._peak,
+                extreme,
+                drawdown,
+                fraction,
                 f"adverse-first intrabar drawdown {drawdown} ({fraction:.4%}) reached the "
                 f"{self._limits.max_drawdown_pct}% limit; new entries blocked "
                 f"({self._limits.on_limit_breach})",
@@ -328,12 +342,17 @@ class RiskEngine:
             return self._reject(intent, OrderRejectionCode.NO_OPEN_POSITION, "exit while flat", bar)
 
         requested: Decimal = (
-            intent.requested_quantity if intent.requested_quantity is not None else position.quantity
+            intent.requested_quantity
+            if intent.requested_quantity is not None
+            else position.quantity
         )
         quantity: Decimal = min(self._spec.round_quantity(requested), position.quantity)
         if quantity <= ZERO:
             return self._reject(
-                intent, OrderRejectionCode.NON_POSITIVE_QUANTITY, "exit quantity rounds to zero", bar
+                intent,
+                OrderRejectionCode.NON_POSITIVE_QUANTITY,
+                "exit quantity rounds to zero",
+                bar,
             )
         resize: str | None = (
             f"exit clipped from {requested} to open quantity {quantity}"
@@ -363,7 +382,7 @@ class RiskEngine:
             intent=intent, reference_price=bar.close, view=view, spec=self._spec
         )
         if not sizing.sized:
-            assert sizing.code is not None  # noqa: S101 — protocol guarantees a code
+            assert sizing.code is not None
             return self._reject(intent, sizing.code, sizing.detail, bar)
 
         quantity: Decimal = sizing.quantity
@@ -390,7 +409,7 @@ class RiskEngine:
                 spec=self._spec,
             )
             if not verdict.allowed:
-                assert verdict.code is not None  # noqa: S101 — reject() always sets one
+                assert verdict.code is not None
                 return self._reject(intent, verdict.code, f"{rule.name}: {verdict.detail}", bar)
 
         return self._mint(intent, quantity, bar, trade_id, resize)

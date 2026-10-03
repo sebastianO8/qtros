@@ -14,14 +14,16 @@ Fixture design rules for this project:
 
 from __future__ import annotations
 
-from hypothesis import HealthCheck, settings  # new addition reccomended to stop failtures during pytest runs 8/1/26
-
-from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 import polars as pl
 import pytest
+from hypothesis import (  # new addition reccomended to stop failtures during pytest runs 8/1/26
+    HealthCheck,
+    settings,
+)
 
 from qtros.domain.enums import AssetClass, Direction, ExitReason, Timeframe
 from qtros.domain.execution import ExecutionFill
@@ -33,13 +35,16 @@ from qtros.domain.feature_contracts import (
     LagPolicy,
     WarmupPlan,
 )
-from qtros.domain.identifiers import FillId, InstrumentId, SequentialIdFactory, TradeId
+from qtros.domain.identifiers import InstrumentId, SequentialIdFactory, TradeId
 from qtros.domain.instrument import InstrumentSpec
 from qtros.domain.market import BarData
 from qtros.domain.orders import RISK_APPROVAL, ApprovedOrder, TradeIntent
 from qtros.engine.portfolio import Portfolio
 from qtros.execution.broker import SimulatedBroker
 from qtros.execution.friction import StandardFrictionModel
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Mapping, Sequence
 
 INITIAL_CASH: Decimal = Decimal("1000000")
 """Deliberately large so that no test fails for lack of capital rather than for the
@@ -50,8 +55,7 @@ BAR_INTERVAL: timedelta = Timeframe.M5.duration
 
 # Globally suppress the function_scoped_fixture health check
 settings.register_profile(
-    "qtros_profile",
-    suppress_health_check=[HealthCheck.function_scoped_fixture]
+    "qtros_profile", suppress_health_check=[HealthCheck.function_scoped_fixture]
 )
 settings.load_profile("qtros_profile")
 
@@ -210,9 +214,7 @@ def make_order(
 
 
 @pytest.fixture
-def make_fill(
-    instrument: InstrumentSpec, ids: SequentialIdFactory
-) -> Callable[..., ExecutionFill]:
+def make_fill(instrument: InstrumentSpec, ids: SequentialIdFactory) -> Callable[..., ExecutionFill]:
     """Return a factory building fills directly, bypassing the broker.
 
     Ledger tests use this so that a portfolio failure cannot be masked or caused by
@@ -330,7 +332,9 @@ def build_feature_frame() -> Callable[..., FeatureFrame]:
         features: Mapping[str, Sequence[float | None]] = feature_values or {
             "bar_marker": [float(index) for index in range(rows)]
         }
-        opens: list[str] = list(prices) if prices else [f"{95 + index}.000" for index in range(rows)]
+        opens: list[str] = (
+            list(prices) if prices else [f"{95 + index}.000" for index in range(rows)]
+        )
 
         data: dict[str, object] = {
             "ts_utc": [EPOCH + BAR_INTERVAL * index for index in range(rows)],
@@ -345,11 +349,10 @@ def build_feature_frame() -> Callable[..., FeatureFrame]:
         if session_index is not None:
             data["session_index"] = list(session_index)
 
-        frame = pl.DataFrame(data).with_columns(
-            pl.col("ts_utc").dt.replace_time_zone("UTC")
-            if pl.DataFrame(data).schema["ts_utc"].time_zone is None
-            else pl.col("ts_utc")
-        )
+        frame = pl.DataFrame(data)
+        ts_dtype = frame.schema["ts_utc"]
+        if isinstance(ts_dtype, pl.Datetime) and ts_dtype.time_zone is None:
+            frame = frame.with_columns(pl.col("ts_utc").dt.replace_time_zone("UTC"))
 
         specs = tuple(
             FeatureSpec(

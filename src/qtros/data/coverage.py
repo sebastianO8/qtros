@@ -12,9 +12,8 @@ means the definition of "impossible bar" exists exactly once.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 import polars as pl
 import structlog
@@ -28,7 +27,11 @@ from qtros.domain.data_contracts import (
 )
 from qtros.domain.enums import GapKind, OhlcViolation, Timeframe
 from qtros.domain.errors import SchemaContractError
-from qtros.domain.identifiers import InstrumentId
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from qtros.domain.identifiers import InstrumentId
 
 _LOGGER: Final = structlog.get_logger(__name__)
 
@@ -134,16 +137,12 @@ def violation_counts(frame: pl.DataFrame) -> Mapping[OhlcViolation, int]:
 
     totals: dict[str, int] = frame.select(
         [
-            expression.fill_null(kind is OhlcViolation.NULL_PRICE)
-            .sum()
-            .alias(str(kind))
+            expression.fill_null(kind is OhlcViolation.NULL_PRICE).sum().alias(str(kind))
             for kind, expression in expressions.items()
         ]
     ).row(0, named=True)
 
-    return {
-        OhlcViolation(name): int(count) for name, count in totals.items() if int(count) > 0
-    }
+    return {OhlcViolation(name): int(count) for name, count in totals.items() if int(count) > 0}
 
 
 def find_ohlc_violations(frame: pl.DataFrame) -> tuple[tuple[OhlcViolationRecord, ...], int]:
@@ -180,9 +179,7 @@ def find_ohlc_violations(frame: pl.DataFrame) -> tuple[tuple[OhlcViolationRecord
         breaches: tuple[OhlcViolation, ...] = tuple(
             OhlcViolation(name) for name in kind_names if bool(row[name])
         )
-        records.append(
-            OhlcViolationRecord(ts_utc=row[TS_COLUMN], violations=breaches)
-        )
+        records.append(OhlcViolationRecord(ts_utc=row[TS_COLUMN], violations=breaches))
     return tuple(records), total
 
 
@@ -388,9 +385,7 @@ def analyze_coverage(
         .sum()
     )
     synthetic_bars: int = (
-        int(frame.get_column(SYNTHETIC_COLUMN).sum())
-        if SYNTHETIC_COLUMN in frame.columns
-        else 0
+        int(frame.get_column(SYNTHETIC_COLUMN).sum()) if SYNTHETIC_COLUMN in frame.columns else 0
     )
 
     report = CoverageReport(

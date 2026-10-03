@@ -7,9 +7,9 @@ config without being re-run, and the result carries the ``reporting_id`` that sc
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from qtros.analytics.attribution import AttributionReport, attribute
 from qtros.analytics.concentration import ConcentrationResult, concentration
@@ -33,10 +33,14 @@ from qtros.analytics.metrics import (
     sharpe_ratio,
     trade_statistics,
 )
-from qtros.configuration.loader import ResolvedBacktestConfig
 from qtros.domain.enums import ExecutionTiming, PathAssumption
-from qtros.domain.timekeeping import SessionCalendar
-from qtros.engine.backtester import BacktestResult
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from qtros.configuration.loader import ResolvedBacktestConfig
+    from qtros.domain.timekeeping import SessionCalendar
+    from qtros.engine.backtester import BacktestResult
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,7 +119,9 @@ def analyze(
     sharpe = sharpe_ratio(periodic_returns(points, reporting.sharpe.return_type), reporting.sharpe)
     dd = drawdown(result.equity_curve)
     conc = concentration(result.trades, reporting.concentration, calendar)
-    attr = attribute(result.trades, result.fills, calendar, reporting.concentration.trade_period_attribution)
+    attr = attribute(
+        result.trades, result.fills, calendar, reporting.concentration.trade_period_attribution
+    )
     gates = evaluate_gates(
         stats=stats,
         sharpe=sharpe,

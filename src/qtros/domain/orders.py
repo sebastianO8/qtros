@@ -20,15 +20,18 @@ build rather than failing silently, which is the property that matters.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
 from decimal import Decimal
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from qtros.domain.enums import Direction, ExitReason, OrderRejectionCode, OrderType
 from qtros.domain.errors import QtrosError
-from qtros.domain.identifiers import InstrumentId, TradeId
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+    from datetime import datetime
+
+    from qtros.domain.identifiers import InstrumentId, TradeId
 
 
 class ApprovalError(QtrosError):

@@ -17,15 +17,18 @@ computed over trades and the three exits are one trade.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import datetime
 from decimal import Decimal
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
-from qtros.domain.enums import Direction, ExitReason
-from qtros.domain.identifiers import FillId, InstrumentId, TradeId
 from qtros.domain.money import quantize_money
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from datetime import datetime
+
+    from qtros.domain.enums import Direction, ExitReason
+    from qtros.domain.identifiers import FillId, InstrumentId, TradeId
 
 ZERO: Final[Decimal] = Decimal("0")
 
@@ -353,7 +356,5 @@ def weighted_average_price(
     total_quantity: Decimal = sum((fill.quantity for fill in selected), ZERO)
     if total_quantity <= ZERO:
         return None
-    weighted: Decimal = sum(
-        (fill.fill_price * fill.quantity for fill in selected), ZERO
-    )
+    weighted: Decimal = sum((fill.fill_price * fill.quantity for fill in selected), ZERO)
     return weighted / total_quantity

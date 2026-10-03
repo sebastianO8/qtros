@@ -9,12 +9,15 @@ from __future__ import annotations
 
 from dataclasses import replace
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from pydantic import Field, model_validator
 
 from qtros.configuration.models.base import QtrosConfig, StrictDecimal
 from qtros.domain.enums import CommissionModel, SlippageModel, SpreadModel
-from qtros.domain.instrument import InstrumentSpec
+
+if TYPE_CHECKING:
+    from qtros.domain.instrument import InstrumentSpec
 
 ZERO = Decimal("0")
 
@@ -107,7 +110,9 @@ class FrictionConfig(QtrosConfig):
         if self.slippage_model is SlippageModel.ATR_FRACTION:
             raise ValueError("ATR_FRACTION slippage is not implemented in Phase 1")
 
-        commission = ZERO if self.commission_model is CommissionModel.NONE else self.commission_value
+        commission = (
+            ZERO if self.commission_model is CommissionModel.NONE else self.commission_value
+        )
         spread = (
             self.spread_value_ticks
             if self.spread_model is SpreadModel.FIXED_TICKS and self.spread_value_ticks is not None

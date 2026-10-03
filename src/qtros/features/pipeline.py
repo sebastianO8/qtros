@@ -19,8 +19,7 @@ discouraged.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 import polars as pl
 import structlog
@@ -38,6 +37,9 @@ from qtros.domain.feature_contracts import (
     WarmupPlan,
 )
 from qtros.features.transforms.base import TransformBase, seal_features
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
 
 _LOGGER: Final = structlog.get_logger(__name__)
 
@@ -245,7 +247,7 @@ class FeaturePipeline:
         for transform in order:
             try:
                 lazy = transform.apply(lazy)
-            except Exception as exc:  # noqa: BLE001 - polars raises several types
+            except Exception as exc:
                 raise SchemaContractError(
                     "Feature transform failed while building its expression",
                     transform=transform.spec.name,
@@ -254,7 +256,7 @@ class FeaturePipeline:
                 ) from exc
         try:
             return lazy.collect()
-        except Exception as exc:  # noqa: BLE001 - polars raises several types
+        except Exception as exc:
             raise SchemaContractError(
                 "Feature pipeline failed during evaluation",
                 transforms=[transform.spec.name for transform in order],
@@ -514,9 +516,7 @@ def resolve_execution_order(
     remaining: list[int] = list(range(len(transforms)))
 
     while remaining:
-        ready: list[int] = [
-            index for index in remaining if dependencies[index] <= resolved
-        ]
+        ready: list[int] = [index for index in remaining if dependencies[index] <= resolved]
         if not ready:
             cycle: list[str] = [transforms[index].spec.name for index in remaining]
             raise ConfigurationError(
@@ -588,8 +588,6 @@ def describe_plan(order: Sequence[IFeatureTransform], plan: WarmupPlan) -> Mappi
         "warmup_total_bars": plan.total_bars,
         "warmup_per_transform": dict(plan.per_transform),
         "session_scoped": list(plan.session_columns),
-        "spec_hashes": {
-            transform.spec.name: transform.spec.short_hash for transform in order
-        },
+        "spec_hashes": {transform.spec.name: transform.spec.short_hash for transform in order},
         "sealed_columns": sorted(seal_features(order).features),
     }

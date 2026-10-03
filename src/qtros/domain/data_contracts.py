@@ -11,11 +11,9 @@ evidence of anything.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from qtros.domain.enums import (
     DstPolicy,
@@ -27,7 +25,12 @@ from qtros.domain.enums import (
     Timeframe,
     TimestampPolicy,
 )
-from qtros.domain.identifiers import CalendarId, InstrumentId, SourceId
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from pathlib import Path
+
+    from qtros.domain.identifiers import CalendarId, InstrumentId, SourceId
 
 # --------------------------------------------------------------------------------------
 # Source description

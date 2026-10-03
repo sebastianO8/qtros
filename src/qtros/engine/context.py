@@ -18,18 +18,21 @@ factory refuses such a frame rather than compounding the shift.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from datetime import datetime
 from decimal import Decimal
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 import structlog
 
 from qtros.domain.errors import ConfigurationError, SchemaContractError
 from qtros.domain.feature_contracts import FeatureFrame, LagPolicy
-from qtros.domain.instrument import InstrumentSpec
 from qtros.domain.market import BarData
 from qtros.domain.signals import BarContext, FeatureRow, PortfolioView, SessionInfo
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from datetime import datetime
+
+    from qtros.domain.instrument import InstrumentSpec
 
 _LOGGER: Final = structlog.get_logger(__name__)
 
@@ -254,9 +257,7 @@ class BarContextFactory:
 
         for index in range(count):
             previous: int | None = session_index[index - 1] if index > 0 else None
-            following: int | None = (
-                session_index[index + 1] if index + 1 < count else None
-            )
+            following: int | None = session_index[index + 1] if index + 1 < count else None
             opens[index] = previous is None or session_index[index] != previous
             closes[index] = following is None or session_index[index] != following
             positions[index] = 0 if opens[index] else positions[index - 1] + 1

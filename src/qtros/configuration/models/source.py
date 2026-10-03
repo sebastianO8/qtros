@@ -99,10 +99,7 @@ class DataSourceConfig(QtrosConfig):
         policy = self.timestamp_policy
         if policy is TimestampPolicy.DECLARED_ZONE and self.declared_zone is None:
             raise ValueError("timestamp_policy DECLARED_ZONE requires declared_zone")
-        if (
-            policy is TimestampPolicy.DECLARED_FIXED_OFFSET
-            and self.declared_offset_minutes is None
-        ):
+        if policy is TimestampPolicy.DECLARED_FIXED_OFFSET and self.declared_offset_minutes is None:
             raise ValueError(
                 "timestamp_policy DECLARED_FIXED_OFFSET requires declared_offset_minutes"
             )

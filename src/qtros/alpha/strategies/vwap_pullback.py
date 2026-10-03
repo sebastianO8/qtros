@@ -79,8 +79,12 @@ class VwapPullback(StrategyBase):
                     ts_utc=ctx.ts_utc,
                     instrument_id=ctx.instrument_id,
                     direction=Direction.LONG,
-                    stop_loss=ctx.instrument.round_price(stop, direction=Direction.LONG, adverse=True),
-                    take_profit=ctx.instrument.round_price(target, direction=Direction.SHORT, adverse=True),
+                    stop_loss=ctx.instrument.round_price(
+                        stop, direction=Direction.LONG, adverse=True
+                    ),
+                    take_profit=ctx.instrument.round_price(
+                        target, direction=Direction.SHORT, adverse=True
+                    ),
                     mechanism_tag=MECHANISM_TAG,
                     rationale={"zscore": zscore, "atr": atr},
                 )

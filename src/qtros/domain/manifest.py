@@ -1,20 +1,23 @@
-"""Run manifest (Directive 10; ARCH-002 §5–§6).
+"""Run manifest (Directive 10; ARCH-002 §5-§6).
 
 The manifest is the claim that a result is reproducible, written in enough detail that
 the claim can be tested: configuration hashes, dataset fingerprint, code revision,
 library versions, and the seed. A dirty working tree does not block a run but stamps it
-``UNTRUSTED`` — the same treatment as an unreconciled ledger, for the same reason: it
+``UNTRUSTED`` - the same treatment as an unreconciled ledger, for the same reason: it
 must be impossible to later mistake an exploratory number for a validated one.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
+from typing import TYPE_CHECKING
 
-from qtros.domain.data_contracts import DatasetFingerprint
-from qtros.domain.identifiers import RunId
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+    from datetime import datetime
+
+    from qtros.domain.data_contracts import DatasetFingerprint
+    from qtros.domain.identifiers import RunId
 
 MANIFEST_SCHEMA_VERSION: int = 1
 

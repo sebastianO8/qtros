@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 import structlog
 
@@ -39,12 +39,14 @@ from qtros.domain.enums import (
     ZeroVolumePolicy,
 )
 from qtros.domain.execution import ExecutionFill, PositionState
-from qtros.domain.identifiers import SequentialIdFactory
-from qtros.domain.instrument import InstrumentSpec
-from qtros.domain.market import BarData
 from qtros.domain.money import quantize_money
-from qtros.domain.orders import ApprovedOrder
-from qtros.execution.friction import FrictionCharges, IFrictionModel
+
+if TYPE_CHECKING:
+    from qtros.domain.identifiers import SequentialIdFactory
+    from qtros.domain.instrument import InstrumentSpec
+    from qtros.domain.market import BarData
+    from qtros.domain.orders import ApprovedOrder
+    from qtros.execution.friction import FrictionCharges, IFrictionModel
 
 _LOGGER: Final = structlog.get_logger(__name__)
 
@@ -202,9 +204,7 @@ class SimulatedBroker:
             )
 
         reference: Decimal = (
-            forced_price
-            if forced_price is not None
-            else self._reference_price(execution_bar)
+            forced_price if forced_price is not None else self._reference_price(execution_bar)
         )
         charges: FrictionCharges = self._friction.charges(
             direction=order.direction,

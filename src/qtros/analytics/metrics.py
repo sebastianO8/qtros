@@ -9,17 +9,21 @@ scored under different conventions cannot be mistaken for comparable.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date, datetime
 from decimal import Decimal
-from typing import Final
+from itertools import pairwise
+from typing import TYPE_CHECKING, Final
 
-from qtros.configuration.models.reporting import SharpeConventionConfig
 from qtros.domain.enums import ReturnBasis, ReturnType
-from qtros.domain.execution import EquitySnapshot, Trade
 from qtros.domain.money import quantize_money
-from qtros.domain.timekeeping import SessionCalendar
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from datetime import date, datetime
+
+    from qtros.configuration.models.reporting import SharpeConventionConfig
+    from qtros.domain.execution import EquitySnapshot, Trade
+    from qtros.domain.timekeeping import SessionCalendar
 
 ZERO: Final[Decimal] = Decimal("0")
 ONE: Final[Decimal] = Decimal("1")
@@ -160,7 +164,11 @@ def daily_equity(
     points: list[DailyPoint] = []
     for snapshot in curve:
         day = calendar.trading_day_for(snapshot.ts_utc)
-        equity = snapshot.closed_equity if basis is ReturnBasis.DAILY_CLOSED_EQUITY else snapshot.mtm_equity
+        equity = (
+            snapshot.closed_equity
+            if basis is ReturnBasis.DAILY_CLOSED_EQUITY
+            else snapshot.mtm_equity
+        )
         point = DailyPoint(day, equity, snapshot.ts_utc)
         if points and points[-1].trading_day == day:
             points[-1] = point
@@ -180,7 +188,7 @@ def periodic_returns(points: Sequence[DailyPoint], return_type: ReturnType) -> t
         One return per consecutive pair. Empty with fewer than two points.
     """
     out: list[Decimal] = []
-    for previous, current in zip(points, points[1:], strict=False):
+    for previous, current in pairwise(points):
         if previous.equity <= ZERO:
             continue
         ratio = current.equity / previous.equity
@@ -231,23 +239,41 @@ def sharpe_ratio(returns: Sequence[Decimal], convention: SharpeConventionConfig)
     n = len(excess)
     if n < 2:
         return SharpeResult(
-            None, n, None, None, convention.annualization_factor, convention.risk_free_rate,
-            convention.return_basis, convention.return_type, reason="fewer than two periods",
+            None,
+            n,
+            None,
+            None,
+            convention.annualization_factor,
+            convention.risk_free_rate,
+            convention.return_basis,
+            convention.return_type,
+            reason="fewer than two periods",
         )
     mean = sum(excess, ZERO) / n
     variance = sum(((r - mean) ** 2 for r in excess), ZERO) / (n - 1)
     if variance <= ZERO:
         return SharpeResult(
-            None, n, quantize_metric(mean), ZERO, convention.annualization_factor,
-            convention.risk_free_rate, convention.return_basis, convention.return_type,
+            None,
+            n,
+            quantize_metric(mean),
+            ZERO,
+            convention.annualization_factor,
+            convention.risk_free_rate,
+            convention.return_basis,
+            convention.return_type,
             reason="zero return dispersion",
         )
     std = variance.sqrt()
     sharpe = (mean / std) * factor.sqrt()
     return SharpeResult(
-        quantize_metric(sharpe), n, quantize_metric(mean), quantize_metric(std),
-        convention.annualization_factor, convention.risk_free_rate,
-        convention.return_basis, convention.return_type,
+        quantize_metric(sharpe),
+        n,
+        quantize_metric(mean),
+        quantize_metric(std),
+        convention.annualization_factor,
+        convention.risk_free_rate,
+        convention.return_basis,
+        convention.return_type,
     )
 
 

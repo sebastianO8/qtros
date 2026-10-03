@@ -20,20 +20,23 @@ this load-bearing is a single point of failure:
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import fields
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 import polars as pl
 import pytest
 
 from qtros.domain.errors import ConfigurationError, SchemaContractError
 from qtros.domain.feature_contracts import FeatureFrame, LagPolicy
-from qtros.domain.instrument import InstrumentSpec
 from qtros.domain.signals import BarContext, PortfolioView, UnknownFeatureError
 from qtros.engine.context import AVAILABILITY_LAG_BARS, BarContextFactory, to_decimal
-
 from tests.conftest import failing_audit
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from qtros.domain.instrument import InstrumentSpec
 
 
 @pytest.fixture
@@ -144,9 +147,7 @@ class TestCurrentBarVisibility:
 class TestDecisionWindow:
     """Bars without a lagged feature row or a following execution bar are not decided on."""
 
-    def test_first_decision_index_is_the_availability_lag(
-        self, factory: BarContextFactory
-    ) -> None:
+    def test_first_decision_index_is_the_availability_lag(self, factory: BarContextFactory) -> None:
         """Bar zero has no predecessor to draw features from."""
         assert factory.first_decision_index == AVAILABILITY_LAG_BARS == 1
 
@@ -157,9 +158,7 @@ class TestDecisionWindow:
         with pytest.raises(IndexError, match="availability lag"):
             factory.build(0, flat_view)
 
-    def test_last_decision_index_excludes_the_final_bar(
-        self, factory: BarContextFactory
-    ) -> None:
+    def test_last_decision_index_excludes_the_final_bar(self, factory: BarContextFactory) -> None:
         """A decision on the final bar has no bar to fill against.
 
         Deciding there and dropping the unfillable order would understate trade count and
@@ -167,16 +166,12 @@ class TestDecisionWindow:
         """
         assert factory.last_decision_index == factory.bar_count - 2
 
-    def test_feature_row_lookup_below_the_lag_is_refused(
-        self, factory: BarContextFactory
-    ) -> None:
+    def test_feature_row_lookup_below_the_lag_is_refused(self, factory: BarContextFactory) -> None:
         """The lower-level accessor enforces the same rule as ``build``."""
         with pytest.raises(IndexError, match="no feature row"):
             factory.feature_row_for(0)
 
-    def test_bar_lookup_outside_the_frame_is_refused(
-        self, factory: BarContextFactory
-    ) -> None:
+    def test_bar_lookup_outside_the_frame_is_refused(self, factory: BarContextFactory) -> None:
         """Out-of-range access raises rather than wrapping around."""
         with pytest.raises(IndexError):
             factory.bar_at(factory.bar_count)
@@ -201,7 +196,8 @@ class TestFeatureAccess:
         context = factory.build(4, flat_view)
         with pytest.raises(UnknownFeatureError) as raised:
             _ = context.features["bar_marke"]
-        assert "bar_marker" in raised.value.context["available"]
+        available = raised.value.context["available"]
+        assert isinstance(available, list) and "bar_marker" in available
 
     def test_require_rejects_a_null_feature(
         self,
@@ -210,9 +206,7 @@ class TestFeatureAccess:
         flat_view: PortfolioView,
     ) -> None:
         """``require`` is for decisions a null would make meaningless."""
-        frame = build_feature_frame(
-            rows=5, feature_values={"sparse": [None, None, 1.0, 2.0, 3.0]}
-        )
+        frame = build_feature_frame(rows=5, feature_values={"sparse": [None, None, 1.0, 2.0, 3.0]})
         context = BarContextFactory(frame, instrument).build(1, flat_view)
         assert context.features.has("sparse") is False
         with pytest.raises(UnknownFeatureError, match="null at this bar"):
@@ -306,9 +300,7 @@ class TestFactoryGuards:
         instrument: InstrumentSpec,
     ) -> None:
         """A failing audit must block the run, not annotate it."""
-        frame = build_feature_frame(
-            rows=10, audit=failing_audit(10, ("bar_marker",))
-        )
+        frame = build_feature_frame(rows=10, audit=failing_audit(10, ("bar_marker",)))
         with pytest.raises(ConfigurationError, match="failed its prefix-invariance audit"):
             BarContextFactory(frame, instrument)
 
@@ -379,7 +371,12 @@ class TestSessionPositioning:
         frame = build_feature_frame(rows=6, session_index=[0, 0, 0, 1, 1, 1])
         factory = BarContextFactory(frame, instrument, session_column="session_index")
         assert [factory.session_at(i).bar_index_in_session for i in range(6)] == [
-            0, 1, 2, 0, 1, 2,
+            0,
+            1,
+            2,
+            0,
+            1,
+            2,
         ]
 
     def test_absent_session_column_treats_the_run_as_one_session(

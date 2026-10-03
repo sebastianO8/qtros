@@ -121,9 +121,7 @@ class AnchoredVwap(TransformBase):
             traded that session.
         """
         anchor_offset_us: int = (
-            self._anchor_time.hour * 3600
-            + self._anchor_time.minute * 60
-            + self._anchor_time.second
+            self._anchor_time.hour * 3600 + self._anchor_time.minute * 60 + self._anchor_time.second
         ) * _MICROSECONDS_PER_SECOND
 
         local_shifted: pl.Expr = pl.col("ts_utc").dt.convert_time_zone(

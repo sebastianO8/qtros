@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import replace
+from typing import TYPE_CHECKING
 
 import polars as pl
 import pytest
@@ -25,6 +25,9 @@ from qtros.domain.feature_contracts import (
 )
 from qtros.domain.signals import BarContext, StrategyDecision, StrategyState
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 
 def seal(*columns: str, non_causal: tuple[str, ...] = ()) -> SealedFeatureSet:
     return SealedFeatureSet(
@@ -35,7 +38,9 @@ def seal(*columns: str, non_causal: tuple[str, ...] = ()) -> SealedFeatureSet:
                 transform_version="1.0.0",
                 spec_hash="0" * 64,
                 warmup_bars=0,
-                causality=Causality.NON_CAUSAL_CONTROL if column in non_causal else Causality.CAUSAL,
+                causality=Causality.NON_CAUSAL_CONTROL
+                if column in non_causal
+                else Causality.CAUSAL,
             )
             for column in columns
         }
@@ -69,7 +74,7 @@ class TestRegistration:
 
     def test_decorator_refuses_non_strategies(self) -> None:
         with pytest.raises(ConfigurationError, match="StrategyBase subclasses only"):
-            register_strategy("not_a_strategy", "1.0.0")(object)  # type: ignore[arg-type]
+            register_strategy("not_a_strategy", "1.0.0")(object)
 
     def test_reference_strategy_is_registered(self) -> None:
         record = strategy_registry.resolve("vwap_pullback", "1.0.0")
@@ -77,8 +82,15 @@ class TestRegistration:
 
     def test_parameters_are_read_only_and_exact(self) -> None:
         strategy = VwapPullback(
-            {"vwap_column": "v", "zscore_column": "z", "atr_column": "a", "entry_z": "-1.5",
-             "exit_z": 0, "stop_atr": "2", "target_atr": "3"}
+            {
+                "vwap_column": "v",
+                "zscore_column": "z",
+                "atr_column": "a",
+                "entry_z": "-1.5",
+                "exit_z": 0,
+                "stop_atr": "2",
+                "target_atr": "3",
+            }
         )
         assert str(strategy.param_decimal("entry_z")) == "-1.5"
         assert strategy.param_decimal("exit_z") == 0
@@ -87,7 +99,7 @@ class TestRegistration:
 
     def test_missing_parameter_is_a_configuration_error(self) -> None:
         with pytest.raises(ConfigurationError, match="missing"):
-            VwapPullback({}).required_features
+            _ = VwapPullback({}).required_features
 
 
 class TestProvenanceCheck:

@@ -97,9 +97,17 @@ ignore = [
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+# Pydantic evaluates field annotations at runtime, so imports used only in annotations
+# of config models must NOT be moved into TYPE_CHECKING blocks.
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel", "qtros.configuration.models.base.QtrosConfig"]
+strict = false
+
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["D", "ANN", "ARG"]   # test names document themselves
 "src/qtros/domain/enums.py" = ["D101", "D102"]
+"src/qtros/cli.py" = ["TC"]        # typer evaluates Annotated[...] at runtime; imports must stay live
+"scripts/**" = ["T201"]            # operator scripts speak through stdout by design
 
 [tool.ruff.format]
 docstring-code-format = true

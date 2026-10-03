@@ -13,11 +13,13 @@ The registry stores opaque factories. It knows nothing about what a strategy is;
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from qtros.domain.errors import ConfigurationError
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator, Mapping
 
 _SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 _ID = re.compile(r"^[a-z][a-z0-9_]*$")

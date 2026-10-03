@@ -28,30 +28,38 @@ from __future__ import annotations
 import json
 import platform
 import subprocess
-from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib import metadata
-from pathlib import Path
-from typing import Any, Final, Protocol
+from typing import TYPE_CHECKING, Any, Final, Protocol
 
 import polars as pl
 import structlog
 import yaml
 
 from qtros.configuration.hashing import ConfigHashes, canonical_json
-from qtros.domain.data_contracts import DatasetFingerprint
 from qtros.domain.errors import QtrosError
 from qtros.domain.identifiers import RunId
 from qtros.domain.manifest import RunManifest
-from qtros.engine.backtester import BacktestResult
-from qtros.engine.builder import RunComponents
 from qtros.persistence.serialize import to_jsonable
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from pathlib import Path
+
+    from qtros.domain.data_contracts import DatasetFingerprint
+    from qtros.engine.backtester import BacktestResult
+    from qtros.engine.builder import RunComponents
 
 _LOGGER: Final = structlog.get_logger(__name__)
 
 TRACKED_LIBRARIES: Final[tuple[str, ...]] = (
-    "polars", "duckdb", "numpy", "pydantic", "pyyaml", "structlog",
+    "polars",
+    "duckdb",
+    "numpy",
+    "pydantic",
+    "pyyaml",
+    "structlog",
 )
 
 WATERMARK_DIRTY_TREE: Final[str] = "UNTRUSTED: run from a dirty git working tree"
@@ -63,7 +71,9 @@ class PersistenceError(QtrosError):
 
 class _HasWatermarks(Protocol):
     @property
-    def watermarks(self) -> tuple[str, ...]: ...
+    def watermarks(self) -> tuple[str, ...]:
+        """Return the disqualifying conditions."""
+        ...
 
 
 class ScoredReport(Protocol):
@@ -75,7 +85,9 @@ class ScoredReport(Protocol):
     """
 
     @property
-    def gates(self) -> _HasWatermarks: ...
+    def gates(self) -> _HasWatermarks:
+        """Return the gate report, or anything carrying ``watermarks``."""
+        ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,11 +128,21 @@ def git_state(repo_root: Path | None = None) -> tuple[str | None, bool | None]:
     """
     cwd = str(repo_root) if repo_root is not None else None
     try:
-        sha = subprocess.run(  # noqa: S603 — fixed argv, no shell
-            ["git", "rev-parse", "HEAD"], cwd=cwd, capture_output=True, text=True, check=True, timeout=5
+        sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
         ).stdout.strip()
-        status = subprocess.run(  # noqa: S603
-            ["git", "status", "--porcelain"], cwd=cwd, capture_output=True, text=True, check=True, timeout=5
+        status = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
         ).stdout
     except (OSError, subprocess.SubprocessError):
         return None, None
@@ -148,13 +170,19 @@ def _rows(records: Sequence[object], exclude: frozenset[str] = frozenset()) -> l
     rows: list[dict[str, Any]] = []
     for record in records:
         flat = to_jsonable(record)
-        rows.append({k: v for k, v in flat.items() if k not in exclude and not isinstance(v, (list, dict))})
+        rows.append(
+            {k: v for k, v in flat.items() if k not in exclude and not isinstance(v, (list, dict))}
+        )
     return rows
 
 
 def _write_table(path: Path, rows: list[dict[str, Any]], schema_hint: Sequence[str]) -> None:
     """Write rows as Parquet; an empty table still gets the declared columns."""
-    frame = pl.DataFrame(rows) if rows else pl.DataFrame({name: pl.Series(name, [], dtype=pl.Utf8) for name in schema_hint})
+    frame = (
+        pl.DataFrame(rows)
+        if rows
+        else pl.DataFrame({name: pl.Series(name, [], dtype=pl.Utf8) for name in schema_hint})
+    )
     frame.write_parquet(path)
 
 
@@ -256,7 +284,8 @@ class RunWriter:
 
         def dump_json(name: str, payload: object) -> None:
             (directory / name).write_text(
-                json.dumps(to_jsonable(payload), indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+                json.dumps(to_jsonable(payload), indent=2, sort_keys=True, ensure_ascii=False)
+                + "\n",
                 encoding="utf-8",
             )
             written.append(name)
@@ -265,7 +294,9 @@ class RunWriter:
         (directory / "config_resolved.yaml").write_text(
             "# Fully resolved configuration — the reproduction input (ARCH-002 D-5).\n"
             "# Decimal fields are quoted strings; floats never appear here.\n"
-            + yaml.safe_dump(json.loads(canonical_json(resolved)), sort_keys=True, allow_unicode=True),
+            + yaml.safe_dump(
+                json.loads(canonical_json(resolved)), sort_keys=True, allow_unicode=True
+            ),
             encoding="utf-8",
         )
         written.append("config_resolved.yaml")
@@ -280,13 +311,20 @@ class RunWriter:
         _write_table(directory / "equity.parquet", _rows(result.equity_curve), ("ts_utc",))
         written.append("equity.parquet")
         rejected_rows = [
-            {**to_jsonable(r.intent), "code": to_jsonable(r.code), "detail": r.detail,
-             "rejected_at_utc": to_jsonable(r.rejected_at_utc)}
+            {
+                **to_jsonable(r.intent),
+                "code": to_jsonable(r.code),
+                "detail": r.detail,
+                "rejected_at_utc": to_jsonable(r.rejected_at_utc),
+            }
             for r in result.rejected_intents
         ]
         _write_table(
             directory / "rejected_intents.parquet",
-            [{k: v for k, v in row.items() if not isinstance(v, (list, dict))} for row in rejected_rows],
+            [
+                {k: v for k, v in row.items() if not isinstance(v, (list, dict))}
+                for row in rejected_rows
+            ],
             ("intent_id",),
         )
         written.append("rejected_intents.parquet")
@@ -309,7 +347,9 @@ class RunWriter:
             trusted=manifest.trusted,
             watermarks=list(watermarks),
         )
-        return WrittenRun(run_id=run_id, directory=directory, manifest=manifest, files=tuple(written))
+        return WrittenRun(
+            run_id=run_id, directory=directory, manifest=manifest, files=tuple(written)
+        )
 
 
 def read_manifest(directory: Path) -> Mapping[str, Any]:
@@ -321,4 +361,5 @@ def read_manifest(directory: Path) -> Mapping[str, Any]:
     Returns:
         The parsed JSON.
     """
-    return json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    payload: dict[str, Any] = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    return payload

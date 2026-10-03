@@ -2,8 +2,8 @@
 
 The registry is rebuilt by scanning ``results/*/manifest.json`` and ``performance.json``.
 It is always regenerable and therefore can never be stale or wrong. The only hand-authored
-fields are the ones that need human judgement — ``mechanism_note`` and the accept/reject
-``decision`` — which live in ``config/registry/decisions.yaml`` keyed by ``run_id`` and
+fields are the ones that need human judgement - ``mechanism_note`` and the accept/reject
+``decision`` - which live in ``config/registry/decisions.yaml`` keyed by ``run_id`` and
 are joined in at export time.
 
 ``registry.duckdb`` from the blueprint is deliberately not produced: only ``data/store``
@@ -13,15 +13,17 @@ may import DuckDB, and a JSON index serves the same purpose for a solo PI.
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
-from pathlib import Path
-from typing import Any, Final
+from typing import TYPE_CHECKING, Any, Final
 
 import structlog
 import yaml
 
 from qtros.domain.errors import ConfigurationError
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from pathlib import Path
 
 _LOGGER: Final = structlog.get_logger(__name__)
 
@@ -97,7 +99,9 @@ class RegistryEntry:
     def outlier_check(self) -> str:
         """Return the constitution's "Outlier Check" column."""
         if self.kill_criterion == "FAIL":
-            return "CONCENTRATED" + (" (note on file)" if self.mechanism_note else " (needs mechanism_note)")
+            return "CONCENTRATED" + (
+                " (note on file)" if self.mechanism_note else " (needs mechanism_note)"
+            )
         if self.kill_criterion == "PASS":
             return "ok"
         return "n/a"
@@ -125,18 +129,25 @@ def load_decisions(path: Path | None) -> Mapping[str, RegistryDecision]:
             raise ConfigurationError("registry decision needs run_id and decision", entry=raw)
         decision = str(raw["decision"]).upper()
         if decision not in DECISIONS:
-            raise ConfigurationError("unknown registry decision", run_id=raw["run_id"], decision=decision)
+            raise ConfigurationError(
+                "unknown registry decision", run_id=raw["run_id"], decision=decision
+            )
         out[str(raw["run_id"])] = RegistryDecision(
-            run_id=str(raw["run_id"]), decision=decision, mechanism_note=str(raw.get("mechanism_note", "") or "")
+            run_id=str(raw["run_id"]),
+            decision=decision,
+            mechanism_note=str(raw.get("mechanism_note", "") or ""),
         )
     return out
 
 
 def _read_json(path: Path) -> Mapping[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    payload: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return payload
 
 
-def scan_results(results_root: Path, decisions: Mapping[str, RegistryDecision] | None = None) -> tuple[RegistryEntry, ...]:
+def scan_results(
+    results_root: Path, decisions: Mapping[str, RegistryDecision] | None = None
+) -> tuple[RegistryEntry, ...]:
     """Build registry rows from every complete run directory.
 
     Args:
@@ -179,7 +190,11 @@ def scan_results(results_root: Path, decisions: Mapping[str, RegistryDecision] |
                 max_drawdown_pct=str(performance.get("drawdown", {}).get("max_drawdown_pct", "")),
                 net_pnl=str(performance.get("trades", {}).get("net_pnl", "")),
                 overall=str(gates.get("overall", "")),
-                publishable=bool(gates.get("overall") == "PASS" and not gates.get("watermarks") and gates.get("kill_criterion", {}).get("verdict") != "FAIL"),
+                publishable=bool(
+                    gates.get("overall") == "PASS"
+                    and not gates.get("watermarks")
+                    and gates.get("kill_criterion", {}).get("verdict") != "FAIL"
+                ),
                 lifetime_concentration_pct=lifetime.get("top_n_share_pct"),
                 kill_criterion=str(gates.get("kill_criterion", {}).get("verdict", "")),
                 reporting_id=str(performance.get("reporting_id", "")),
@@ -203,21 +218,33 @@ def render_registry_markdown(entries: Sequence[RegistryEntry]) -> str:
     lines = [
         "# Strategy Registry",
         "",
-        "Derived index rebuilt from `results/*/manifest.json` and `performance.json` (ARCH-002 §6.2).",
-        "Do not edit by hand: decisions and mechanism notes live in `config/registry/decisions.yaml`.",
+        "Derived index rebuilt from `results/*/manifest.json` and `performance.json` "
+        "(ARCH-002 §6.2).",
+        "Do not edit by hand: decisions and mechanism notes live in "
+        "`config/registry/decisions.yaml`.",
         "",
-        "| Run | Experiment | Strategy | Trades | Sharpe | PF | Max DD % | Net PnL | Result | Outlier Check | Trusted | Decision |",
+        "| Run | Experiment | Strategy | Trades | Sharpe | PF | Max DD % | Net PnL | Result "
+        "| Outlier Check | Trusted | Decision |",
         "|---|---|---|---:|---:|---:|---:|---:|---|---|---|---|",
     ]
     for e in entries:
-        lines.append(
-            f"| `{e.run_id}` | {e.experiment_id} | {e.strategy_id} {e.strategy_version} | {e.trade_count} | "
-            f"{e.sharpe or 'n/a'} | {e.profit_factor or 'n/a'} | {e.max_drawdown_pct} | {e.net_pnl} | "
-            f"{e.overall}{' (publishable)' if e.publishable else ''} | {e.outlier_check} | "
-            f"{'yes' if e.trusted else 'NO'}{' ⚠' if e.watermarks else ''} | {e.decision or '—'} |"
+        cells = (
+            f"`{e.run_id}`",
+            e.experiment_id,
+            f"{e.strategy_id} {e.strategy_version}",
+            str(e.trade_count),
+            e.sharpe or "n/a",
+            e.profit_factor or "n/a",
+            e.max_drawdown_pct,
+            e.net_pnl,
+            f"{e.overall}{' (publishable)' if e.publishable else ''}",
+            e.outlier_check,
+            f"{'yes' if e.trusted else 'NO'}{' !' if e.watermarks else ''}",
+            e.decision or "-",
         )
+        lines.append("| " + " | ".join(cells) + " |")
     if not entries:
-        lines.append("| — | no completed runs | | | | | | | | | | |")
+        lines.append("| - | no completed runs | | | | | | | | | | |")
     lines.append("")
     return "\n".join(lines)
 
@@ -237,7 +264,9 @@ class RegistryExport:
     entries: tuple[RegistryEntry, ...]
 
 
-def export_registry(results_root: Path, markdown_path: Path, *, decisions_path: Path | None = None) -> RegistryExport:
+def export_registry(
+    results_root: Path, markdown_path: Path, *, decisions_path: Path | None = None
+) -> RegistryExport:
     """Scan results and write ``docs/registry.md`` plus ``docs/registry.json``.
 
     Args:
@@ -253,7 +282,12 @@ def export_registry(results_root: Path, markdown_path: Path, *, decisions_path: 
     markdown_path.write_text(render_registry_markdown(entries), encoding="utf-8")
     json_path = markdown_path.with_suffix(".json")
     json_path.write_text(
-        json.dumps([asdict(e) | {"outlier_check": e.outlier_check} for e in entries], indent=2, sort_keys=True) + "\n",
+        json.dumps(
+            [asdict(e) | {"outlier_check": e.outlier_check} for e in entries],
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
         encoding="utf-8",
     )
     _LOGGER.info("registry.exported", runs=len(entries), markdown=str(markdown_path))

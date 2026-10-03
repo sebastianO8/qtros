@@ -14,32 +14,36 @@ transforms → :class:`FeaturePipeline`), because ``configuration/`` may not imp
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from decimal import Decimal
-from typing import Any, Final
+from typing import TYPE_CHECKING, Any, Final
 
-import polars as pl
 import structlog
 
-from qtros.alpha.base import IStrategy
-from qtros.configuration.hashing import ConfigHashes
-from qtros.configuration.loader import ResolvedBacktestConfig
-from qtros.configuration.models.features import FeatureSetConfig
 from qtros.configuration.registry import StrategyRegistry, strategy_registry
 from qtros.domain.errors import ConfigurationError
-from qtros.domain.feature_contracts import FeatureFrame
 from qtros.domain.identifiers import SequentialIdFactory
-from qtros.domain.instrument import InstrumentSpec
-from qtros.domain.timekeeping import SessionCalendar
 from qtros.engine.backtester import Backtester, BacktestResult
 from qtros.engine.portfolio import Portfolio
 from qtros.execution.broker import SimulatedBroker
 from qtros.execution.friction import StandardFrictionModel
 from qtros.features.pipeline import FeaturePipeline
 from qtros.features.transforms import build_transform
-from qtros.features.transforms.base import TransformBase
 from qtros.risk.engine import RiskEngine
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from decimal import Decimal
+
+    import polars as pl
+
+    from qtros.alpha.base import IStrategy
+    from qtros.configuration.hashing import ConfigHashes
+    from qtros.configuration.loader import ResolvedBacktestConfig
+    from qtros.configuration.models.features import FeatureSetConfig
+    from qtros.domain.feature_contracts import FeatureFrame
+    from qtros.domain.instrument import InstrumentSpec
+    from qtros.domain.timekeeping import SessionCalendar
+    from qtros.features.transforms.base import TransformBase
 
 _LOGGER: Final = structlog.get_logger(__name__)
 
@@ -162,7 +166,9 @@ def build_run(
     hashes: ConfigHashes = resolved.hashes()
     ids = SequentialIdFactory(hashes.run_id_fragment)
 
-    instrument: InstrumentSpec = resolved.friction.apply_to_instrument(resolved.instrument.to_spec())
+    instrument: InstrumentSpec = resolved.friction.apply_to_instrument(
+        resolved.instrument.to_spec()
+    )
     calendar: SessionCalendar = resolved.calendar.to_calendar(
         rollover_time_local=resolved.instrument.rollover_time_local,
         rollover_tz=resolved.instrument.rollover_tz,

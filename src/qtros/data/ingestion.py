@@ -23,17 +23,14 @@ Everything else it finds, it rejects and reports.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final, Literal
 
 import polars as pl
 import structlog
 
 from qtros.data import coverage
-from qtros.data.store import WarehouseStore
 from qtros.domain.data_contracts import (
     DuplicateRecord,
     IngestionReport,
@@ -51,6 +48,13 @@ from qtros.domain.errors import (
     SourceValidationError,
     TimezoneError,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Mapping
+    from pathlib import Path
+
+    from qtros.data.store import WarehouseStore
+
 _LOGGER: Final = structlog.get_logger(__name__)
 
 OUTPUT_DIR_MARKER: Final[str] = ".qtros_output"
@@ -264,8 +268,12 @@ class IngestionService:
             mode=mode,
         )
 
-        first_ts: datetime | None = accepted.get_column(TS_COLUMN).min() if accepted.height else None  # type: ignore[assignment]
-        last_ts: datetime | None = accepted.get_column(TS_COLUMN).max() if accepted.height else None  # type: ignore[assignment]
+        first_ts: datetime | None = (
+            _datetime_or_none(accepted.get_column(TS_COLUMN).min()) if accepted.height else None
+        )
+        last_ts: datetime | None = (
+            _datetime_or_none(accepted.get_column(TS_COLUMN).max()) if accepted.height else None
+        )
         finished_at: datetime = self._clock()
 
         rejection_tally: dict[str, int] = dict(rejections)
@@ -457,8 +465,8 @@ class IngestionService:
                 source_id=str(spec.source_id),
                 root_path=str(root),
             )
-        matches = root.rglob(spec.glob_pattern) if spec.recursive_glob else root.glob(
-            spec.glob_pattern
+        matches = (
+            root.rglob(spec.glob_pattern) if spec.recursive_glob else root.glob(spec.glob_pattern)
         )
         return tuple(sorted(path.resolve() for path in matches if path.is_file()))
 
@@ -480,7 +488,7 @@ class IngestionService:
                 separator=spec.csv_separator,
                 has_header=spec.has_header,
             ).columns
-        except Exception as exc:  # noqa: BLE001 - polars raises several unrelated types
+        except Exception as exc:
             raise SourceValidationError(
                 "Could not read CSV header",
                 path=str(path),
@@ -551,7 +559,7 @@ class IngestionService:
                 )
             else:
                 frame = pl.read_parquet(path, columns=wanted)
-        except Exception as exc:  # noqa: BLE001 - polars raises several unrelated types
+        except Exception as exc:
             raise IngestionError(
                 "Failed to parse source file",
                 path=str(path),
@@ -603,21 +611,20 @@ class IngestionService:
         elif policy is TimestampPolicy.DECLARED_FIXED_OFFSET:
             offset: timedelta = spec.declared_offset or timedelta(0)
             # A constant offset has no DST, therefore no ambiguity: subtract and stamp.
-            utc_expr = (parsed - pl.duration(microseconds=int(offset.total_seconds() * 1e6))
-                        ).dt.replace_time_zone("UTC")
+            utc_expr = (
+                parsed - pl.duration(microseconds=int(offset.total_seconds() * 1e6))
+            ).dt.replace_time_zone("UTC")
 
         else:
             zone: str = spec.declared_zone or "UTC"
             ambiguous, non_existent = _dst_resolution_arguments(spec.dst_policy)
-            utc_expr = (
-                parsed.dt.replace_time_zone(
-                    zone, ambiguous=ambiguous, non_existent=non_existent
-                ).dt.convert_time_zone("UTC")
-            )
+            utc_expr = parsed.dt.replace_time_zone(
+                zone, ambiguous=ambiguous, non_existent=non_existent
+            ).dt.convert_time_zone("UTC")
 
         try:
             converted: pl.DataFrame = frame.with_columns(utc_expr.alias(TS_COLUMN))
-        except Exception as exc:  # noqa: BLE001 - polars raises ComputeError subtypes
+        except Exception as exc:
             if policy is TimestampPolicy.DECLARED_ZONE:
                 raise self._diagnose_dst_failure(frame, spec, path, exc) from exc
             raise IngestionError(
@@ -707,7 +714,7 @@ class IngestionService:
             samples = [
                 str(value) for value in probe.head(_DST_SAMPLE_LIMIT).get_column(RAW_TS_COLUMN)
             ]
-        except Exception:  # noqa: BLE001 - diagnostics must never mask the real failure
+        except Exception:
             _LOGGER.warning("ingestion.dst_diagnosis_failed", path=str(path))
 
         return TimezoneError(
@@ -751,9 +758,7 @@ class IngestionService:
             tally["NULL_TIMESTAMP"] = null_timestamps
 
         bad_ohlc: pl.Series = coverage.ohlc_violation_mask(frame)
-        accepted: pl.DataFrame = frame.filter(
-            (~bad_ohlc) & pl.col(TS_COLUMN).is_not_null()
-        )
+        accepted: pl.DataFrame = frame.filter((~bad_ohlc) & pl.col(TS_COLUMN).is_not_null())
 
         if tally:
             _LOGGER.warning(
@@ -853,7 +858,16 @@ class IngestionService:
 # --------------------------------------------------------------------------------------
 
 
-def _dst_resolution_arguments(policy: DstPolicy) -> tuple[str, str]:
+Ambiguous = Literal["earliest", "latest", "raise", "null"]
+NonExistent = Literal["raise", "null"]
+
+
+def _datetime_or_none(value: object) -> datetime | None:
+    """Return a scalar as a datetime, or ``None`` if it is not one."""
+    return value if isinstance(value, datetime) else None
+
+
+def _dst_resolution_arguments(policy: DstPolicy) -> tuple[Ambiguous, NonExistent]:
     """Translate a DST policy into Polars' ``ambiguous`` and ``non_existent`` arguments.
 
     Args:

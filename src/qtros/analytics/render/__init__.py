@@ -9,16 +9,18 @@ the renderer computes nothing new.
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from importlib import resources
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from jinja2 import Environment, StrictUndefined, select_autoescape
 
-from qtros.analytics import PerformanceReport
-from qtros.domain.execution import EquitySnapshot
-from qtros.engine.backtester import BacktestResult
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+
+    from qtros.analytics import PerformanceReport
+    from qtros.domain.execution import EquitySnapshot
+    from qtros.engine.backtester import BacktestResult
 
 _WIDTH: Final[int] = 1040
 _HEIGHT: Final[int] = 300
@@ -35,7 +37,9 @@ def _environment() -> Environment:
     )
 
 
-def _scale(values: Sequence[Decimal], lo: Decimal, hi: Decimal, size: int, pad: int, *, invert: bool) -> list[Decimal]:
+def _scale(
+    values: Sequence[Decimal], lo: Decimal, hi: Decimal, size: int, pad: int, *, invert: bool
+) -> list[Decimal]:
     """Map values onto pixel coordinates."""
     span = hi - lo if hi != lo else Decimal("1")
     out: list[Decimal] = []
@@ -62,7 +66,14 @@ def equity_curve_svg(curve: Sequence[EquitySnapshot]) -> str:
     closed = [s.closed_equity for s in curve]
     lo = min(min(mtm), min(closed))
     hi = max(max(mtm), max(closed))
-    xs = _scale([Decimal(i) for i in range(len(curve))], Decimal(0), Decimal(max(len(curve) - 1, 1)), _WIDTH, _PAD, invert=False)
+    xs = _scale(
+        [Decimal(i) for i in range(len(curve))],
+        Decimal(0),
+        Decimal(max(len(curve) - 1, 1)),
+        _WIDTH,
+        _PAD,
+        invert=False,
+    )
     y_mtm = _scale(mtm, lo, hi, _HEIGHT, _PAD, invert=True)
     y_closed = _scale(closed, lo, hi, _HEIGHT, _PAD, invert=True)
 
@@ -70,18 +81,23 @@ def equity_curve_svg(curve: Sequence[EquitySnapshot]) -> str:
         return " ".join(f"{x:.1f},{y:.1f}" for x, y in zip(xs, ys, strict=True))
 
     first, last = curve[0].ts_utc, curve[-1].ts_utc
-    return (
-        f'<svg width="{_WIDTH}" height="{_HEIGHT}" viewBox="0 0 {_WIDTH} {_HEIGHT}" role="img" aria-label="equity curve">'
-        f'<line x1="{_PAD}" y1="{_HEIGHT - _PAD}" x2="{_WIDTH - _PAD}" y2="{_HEIGHT - _PAD}" stroke="#d9dee3"/>'
-        f'<line x1="{_PAD}" y1="{_PAD}" x2="{_PAD}" y2="{_HEIGHT - _PAD}" stroke="#d9dee3"/>'
-        f'<polyline fill="none" stroke="#8a94a6" stroke-width="1.5" points="{path(y_closed)}"/>'
-        f'<polyline fill="none" stroke="#2b6cb0" stroke-width="1.5" points="{path(y_mtm)}"/>'
-        f'<text x="{_PAD}" y="{_PAD - 8}" font-size="11" fill="#5b6670">{hi}</text>'
-        f'<text x="{_PAD}" y="{_HEIGHT - _PAD + 14}" font-size="11" fill="#5b6670">{lo}</text>'
-        f'<text x="{_PAD}" y="{_HEIGHT - 8}" font-size="11" fill="#5b6670">{first:%Y-%m-%d %H:%M}</text>'
-        f'<text x="{_WIDTH - _PAD}" y="{_HEIGHT - 8}" font-size="11" fill="#5b6670" text-anchor="end">{last:%Y-%m-%d %H:%M}</text>'
-        "</svg>"
-    )
+    bottom, right = _HEIGHT - _PAD, _WIDTH - _PAD
+    label = 'font-size="11" fill="#5b6670"'
+    parts = [
+        f'<svg width="{_WIDTH}" height="{_HEIGHT}" viewBox="0 0 {_WIDTH} {_HEIGHT}" '
+        'role="img" aria-label="equity curve">',
+        f'<line x1="{_PAD}" y1="{bottom}" x2="{right}" y2="{bottom}" stroke="#d9dee3"/>',
+        f'<line x1="{_PAD}" y1="{_PAD}" x2="{_PAD}" y2="{bottom}" stroke="#d9dee3"/>',
+        f'<polyline fill="none" stroke="#8a94a6" stroke-width="1.5" points="{path(y_closed)}"/>',
+        f'<polyline fill="none" stroke="#2b6cb0" stroke-width="1.5" points="{path(y_mtm)}"/>',
+        f'<text x="{_PAD}" y="{_PAD - 8}" {label}>{hi}</text>',
+        f'<text x="{_PAD}" y="{bottom + 14}" {label}>{lo}</text>',
+        f'<text x="{_PAD}" y="{_HEIGHT - 8}" {label}>{first:%Y-%m-%d %H:%M}</text>',
+        f'<text x="{right}" y="{_HEIGHT - 8}" {label} text-anchor="end">'
+        f"{last:%Y-%m-%d %H:%M}</text>",
+        "</svg>",
+    ]
+    return "".join(parts)
 
 
 def render_report(
@@ -104,7 +120,11 @@ def render_report(
     Returns:
         A complete HTML document.
     """
-    template_text = resources.files("qtros.analytics.render").joinpath("report.html.j2").read_text(encoding="utf-8")
+    template_text = (
+        resources.files("qtros.analytics.render")
+        .joinpath("report.html.j2")
+        .read_text(encoding="utf-8")
+    )
     template = _environment().from_string(template_text)
     rejections = sorted(Counter(str(r.code) for r in result.rejected_intents).items())
     return template.render(

@@ -1,4 +1,4 @@
-"""Configuration layer tests (ARCH-002 §4–§5, D-1, D-2, D-4, D-5; PI ruling G-5).
+"""Configuration layer tests (ARCH-002 §4-§5, D-1, D-2, D-4, D-5; PI ruling G-5).
 
 Two schema tests carry the layer: every ``Decimal`` field in every model rejects float
 input, and every field in every model resolves to exactly one provenance partition.
@@ -9,8 +9,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from pathlib import Path
-from typing import Any, get_args
+from typing import TYPE_CHECKING, Any, get_args
 
 import pytest
 from pydantic import ValidationError
@@ -39,6 +38,9 @@ from qtros.configuration.hashing import FloatInHashError, field_provenance
 from qtros.configuration.models import SignificancePolicyConfig, reject_float_input
 from qtros.domain.enums import Timeframe
 from qtros.domain.errors import ConfigurationError
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # --------------------------------------------------------------------------------------
 # Builders
@@ -115,8 +117,13 @@ CALENDAR: dict[str, Any] = {
     "week_open": {"weekday": 6, "time_local": "17:00:00", "timezone": "America/New_York"},
     "week_close": {"weekday": 4, "time_local": "17:00:00", "timezone": "America/New_York"},
     "sessions": [
-        {"name": "asian", "open_local": "09:00:00", "close_local": "15:00:00",
-         "timezone": "Asia/Tokyo", "weekdays": [0, 1, 2, 3, 4]},
+        {
+            "name": "asian",
+            "open_local": "09:00:00",
+            "close_local": "15:00:00",
+            "timezone": "Asia/Tokyo",
+            "weekdays": [0, 1, 2, 3, 4],
+        },
     ],
     "holidays": ["2024-01-01", "2024-12-25"],
 }
@@ -316,8 +323,12 @@ class TestModelRules:
     def test_friction_applies_to_instrument_without_touching_the_model(self) -> None:
         spec = InstrumentConfig(**INSTRUMENT).to_spec()
         adjusted = FrictionConfig(
-            **{**FRICTION, "commission_value": "4", "spread_model": "FIXED_TICKS",
-               "spread_value_ticks": "3"}
+            **{
+                **FRICTION,
+                "commission_value": "4",
+                "spread_model": "FIXED_TICKS",
+                "spread_value_ticks": "3",
+            }
         ).apply_to_instrument(spec)
         assert adjusted.commission_per_lot == Decimal("4")
         assert adjusted.typical_spread_ticks == Decimal("3")
@@ -325,26 +336,30 @@ class TestModelRules:
 
     def test_same_bar_close_requires_the_flag(self) -> None:
         with pytest.raises(ValidationError, match="allow_same_bar_close_fill"):
-            ExecutionConfig(timing="SAME_BAR_CLOSE")
-        assert ExecutionConfig(timing="SAME_BAR_CLOSE", allow_same_bar_close_fill=True).is_watermarked
+            ExecutionConfig.model_validate({"timing": "SAME_BAR_CLOSE"})
+        assert ExecutionConfig.model_validate(
+            {"timing": "SAME_BAR_CLOSE", "allow_same_bar_close_fill": True}
+        ).is_watermarked
 
     def test_stacked_optimism_is_refused(self) -> None:
         with pytest.raises(ValidationError, match="stacks two optimistic"):
-            ExecutionConfig(
-                timing="SAME_BAR_CLOSE",
-                allow_same_bar_close_fill=True,
-                path_assumption="FAVOURABLE_FIRST",
+            ExecutionConfig.model_validate(
+                {
+                    "timing": "SAME_BAR_CLOSE",
+                    "allow_same_bar_close_fill": True,
+                    "path_assumption": "FAVOURABLE_FIRST",
+                }
             )
 
     def test_standard_tier_requires_400(self) -> None:
         with pytest.raises(ValidationError, match="400"):
-            SignificancePolicyConfig(tier="STANDARD", min_trades=200)
+            SignificancePolicyConfig.model_validate({"tier": "STANDARD", "min_trades": 200})
 
     def test_low_frequency_requires_pooling(self) -> None:
         with pytest.raises(ValidationError, match="pooled"):
-            SignificancePolicyConfig(tier="LOW_FREQUENCY", min_trades=60)
-        policy = SignificancePolicyConfig(
-            tier="LOW_FREQUENCY", min_trades=60, pooling_instruments=["A", "B", "C", "D"]
+            SignificancePolicyConfig.model_validate({"tier": "LOW_FREQUENCY", "min_trades": 60})
+        policy = SignificancePolicyConfig.model_validate(
+            {"tier": "LOW_FREQUENCY", "min_trades": 60, "pooling_instruments": ["A", "B", "C", "D"]}
         )
         assert policy.is_low_frequency
 
@@ -440,8 +455,8 @@ class TestHashes:
 
     def test_g5_significance_change_mints_a_new_run_hash(self) -> None:
         base = resolved()
-        pooled = SignificancePolicyConfig(
-            tier="LOW_FREQUENCY", min_trades=60, pooling_instruments=["A", "B", "C", "D"]
+        pooled = SignificancePolicyConfig.model_validate(
+            {"tier": "LOW_FREQUENCY", "min_trades": 60, "pooling_instruments": ["A", "B", "C", "D"]}
         )
         retiered = base.model_copy(
             update={"strategy": base.strategy.model_copy(update={"significance": pooled})}
@@ -503,7 +518,9 @@ class TestLoader:
 
     def test_source_instrument_must_match_backtest(self, config_root: Path) -> None:
         path = config_root / "sources" / "dukascopy_m5.yaml"
-        path.write_text(path.read_text().replace('instrument_id: "AUDJPY"', 'instrument_id: "CADJPY"'))
+        path.write_text(
+            path.read_text().replace('instrument_id: "AUDJPY"', 'instrument_id: "CADJPY"')
+        )
         with pytest.raises(ConfigurationError, match="different instrument"):
             ConfigLoader(config_root).load_backtest("phase1_mvp")
 

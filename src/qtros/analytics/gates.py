@@ -14,16 +14,19 @@ sample size, and no watermark is present.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
-from qtros.analytics.concentration import ConcentrationResult
-from qtros.analytics.metrics import DrawdownResult, SharpeResult, TradeStatistics
-from qtros.configuration.models.reporting import ReportingConfig
-from qtros.configuration.models.strategy import SignificancePolicyConfig
 from qtros.domain.enums import GateVerdict
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from qtros.analytics.concentration import ConcentrationResult
+    from qtros.analytics.metrics import DrawdownResult, SharpeResult, TradeStatistics
+    from qtros.configuration.models.reporting import ReportingConfig
+    from qtros.configuration.models.strategy import SignificancePolicyConfig
 
 WATERMARK_UNTRUSTED: Final[str] = "UNTRUSTED: run did not reconcile"
 WATERMARK_SAME_BAR_CLOSE: Final[str] = "SAME_BAR_CLOSE execution timing"
@@ -96,11 +99,21 @@ def _metric_gate(
 ) -> GateCheck:
     """Build a metric gate check with sample-size awareness."""
     if observed is None:
-        return GateCheck(name, GateVerdict.INSUFFICIENT_SAMPLE if not sufficient else GateVerdict.FAIL,
-                         None, threshold, undefined_reason or "metric undefined")
+        return GateCheck(
+            name,
+            GateVerdict.INSUFFICIENT_SAMPLE if not sufficient else GateVerdict.FAIL,
+            None,
+            threshold,
+            undefined_reason or "metric undefined",
+        )
     if not sufficient:
-        return GateCheck(name, GateVerdict.INSUFFICIENT_SAMPLE, observed, threshold,
-                         "computed, but below the significance floor")
+        return GateCheck(
+            name,
+            GateVerdict.INSUFFICIENT_SAMPLE,
+            observed,
+            threshold,
+            "computed, but below the significance floor",
+        )
     return GateCheck(name, GateVerdict.PASS if passes else GateVerdict.FAIL, observed, threshold)
 
 
@@ -133,28 +146,38 @@ def evaluate_gates(
 
     checks: list[GateCheck] = [
         _metric_gate(
-            "min_sharpe", sharpe.sharpe, gates.min_sharpe,
+            "min_sharpe",
+            sharpe.sharpe,
+            gates.min_sharpe,
             sufficient=sufficient,
             passes=sharpe.sharpe is not None and sharpe.sharpe >= gates.min_sharpe,
             undefined_reason=sharpe.reason,
         ),
         _metric_gate(
-            "min_profit_factor", stats.profit_factor, gates.min_profit_factor,
+            "min_profit_factor",
+            stats.profit_factor,
+            gates.min_profit_factor,
             sufficient=sufficient,
-            passes=stats.profit_factor is not None and stats.profit_factor >= gates.min_profit_factor,
+            passes=stats.profit_factor is not None
+            and stats.profit_factor >= gates.min_profit_factor,
             undefined_reason="no losing trades" if stats.gross_loss == 0 else "",
         ),
         # Drawdown is evaluated regardless of sample size: a breach is a breach.
         GateCheck(
             "max_drawdown_pct",
-            GateVerdict.PASS if drawdown.max_drawdown_pct <= gates.max_drawdown_pct else GateVerdict.FAIL,
+            GateVerdict.PASS
+            if drawdown.max_drawdown_pct <= gates.max_drawdown_pct
+            else GateVerdict.FAIL,
             drawdown.max_drawdown_pct,
             gates.max_drawdown_pct,
         ),
     ]
 
     breaches = concentration.quarterly_breaches
-    worst = max((q.top_n_share_pct for q in concentration.quarterly if q.top_n_share_pct is not None), default=None)
+    worst = max(
+        (q.top_n_share_pct for q in concentration.quarterly if q.top_n_share_pct is not None),
+        default=None,
+    )
     if not sufficient:
         verdict = GateVerdict.INSUFFICIENT_SAMPLE
     elif worst is None:
@@ -163,8 +186,13 @@ def evaluate_gates(
         verdict = GateVerdict.FAIL if breaches else GateVerdict.PASS
     checks.append(
         GateCheck(
-            "quarterly_concentration", verdict, worst, reporting.concentration.quarterly_threshold_pct,
-            f"breached quarters: {', '.join(breaches)}" if breaches else ("no evaluable quarter" if worst is None else ""),
+            "quarterly_concentration",
+            verdict,
+            worst,
+            reporting.concentration.quarterly_threshold_pct,
+            f"breached quarters: {', '.join(breaches)}"
+            if breaches
+            else ("no evaluable quarter" if worst is None else ""),
         )
     )
 
@@ -180,22 +208,34 @@ def evaluate_gates(
 
     not_evaluated = ("oos_sharpe_decay_max_pct", "wfo_min_profit_factor")
     checks.extend(
-        GateCheck(name, GateVerdict.NOT_EVALUATED, None, getattr(gates, name),
-                  "requires out-of-sample or walk-forward runs")
+        GateCheck(
+            name,
+            GateVerdict.NOT_EVALUATED,
+            None,
+            getattr(gates, name),
+            "requires out-of-sample or walk-forward runs",
+        )
         for name in not_evaluated
     )
 
     lifetime = concentration.lifetime
     if lifetime.breached is None:
-        kill = GateCheck("lifetime_concentration", GateVerdict.NOT_EVALUATED, None,
-                         reporting.concentration.lifetime_threshold_pct, "no gross profit to concentrate")
+        kill = GateCheck(
+            "lifetime_concentration",
+            GateVerdict.NOT_EVALUATED,
+            None,
+            reporting.concentration.lifetime_threshold_pct,
+            "no gross profit to concentrate",
+        )
     else:
         kill = GateCheck(
             "lifetime_concentration",
             GateVerdict.FAIL if lifetime.breached else GateVerdict.PASS,
             lifetime.top_n_share_pct,
             reporting.concentration.lifetime_threshold_pct,
-            "kill criterion: requires a mechanism_note before the strategy may pass" if lifetime.breached else "",
+            "kill criterion: requires a mechanism_note before the strategy may pass"
+            if lifetime.breached
+            else "",
         )
 
     verdicts = {c.verdict for c in checks}

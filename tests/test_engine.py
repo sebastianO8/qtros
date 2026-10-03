@@ -13,24 +13,27 @@ the test that encodes it.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from qtros.domain.enums import Direction, ExitReason
-from qtros.domain.execution import ExecutionFill, Trade
 from qtros.domain.identifiers import InstrumentId, SequentialIdFactory, TradeId
-from qtros.domain.instrument import InstrumentSpec
 from qtros.domain.market import BarData
 from qtros.domain.orders import RISK_APPROVAL, ApprovedOrder, TradeIntent
 from qtros.engine.portfolio import FillOutcome, Portfolio, PortfolioError
 from qtros.execution.broker import SimulatedBroker
 from qtros.execution.friction import StandardFrictionModel
+from tests.conftest import BAR_INTERVAL, EPOCH, INITIAL_CASH
 
-from tests.conftest import EPOCH, INITIAL_CASH, BAR_INTERVAL
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
+
+    from qtros.domain.execution import ExecutionFill, Trade
+    from qtros.domain.instrument import InstrumentSpec
 
 ZERO = Decimal("0")
 
@@ -109,22 +112,37 @@ def cycle1_outcomes(
         ),
         portfolio.apply_fill(
             make_fill(
-                "0.10", "95.500", Direction.SHORT, trade_id,
-                is_entry=False, exit_reason=ExitReason.TAKE_PROFIT, index=1,
+                "0.10",
+                "95.500",
+                Direction.SHORT,
+                trade_id,
+                is_entry=False,
+                exit_reason=ExitReason.TAKE_PROFIT,
+                index=1,
             ),
             bar_index=1,
         ),
         portfolio.apply_fill(
             make_fill(
-                "0.10", "96.000", Direction.SHORT, trade_id,
-                is_entry=False, exit_reason=ExitReason.TAKE_PROFIT, index=2,
+                "0.10",
+                "96.000",
+                Direction.SHORT,
+                trade_id,
+                is_entry=False,
+                exit_reason=ExitReason.TAKE_PROFIT,
+                index=2,
             ),
             bar_index=2,
         ),
         portfolio.apply_fill(
             make_fill(
-                "0.10", "94.000", Direction.SHORT, trade_id,
-                is_entry=False, exit_reason=ExitReason.STOP_LOSS, index=5,
+                "0.10",
+                "94.000",
+                Direction.SHORT,
+                trade_id,
+                is_entry=False,
+                exit_reason=ExitReason.STOP_LOSS,
+                index=5,
             ),
             bar_index=5,
         ),
@@ -254,8 +272,14 @@ class TestCycle1PartialExits:
             for index, quantity in enumerate(exit_quantities, start=1):
                 leg = run_broker.submit(
                     _approved(
-                        run_ids, instrument, Direction.SHORT, quantity, trade_id,
-                        is_exit=True, exit_reason=ExitReason.TAKE_PROFIT, index=index,
+                        run_ids,
+                        instrument,
+                        Direction.SHORT,
+                        quantity,
+                        trade_id,
+                        is_exit=True,
+                        exit_reason=ExitReason.TAKE_PROFIT,
+                        index=index,
                     ),
                     make_bar(index=index, price="96.000"),
                     instrument,
@@ -370,9 +394,7 @@ class TestReversal:
         closing, opening = outcome.booked_fills
         assert closing.quantity + opening.quantity == Decimal("0.50")
 
-    def test_the_reversal_reconciles_exactly(
-        self, reversal: tuple[Portfolio, FillOutcome]
-    ) -> None:
+    def test_the_reversal_reconciles_exactly(self, reversal: tuple[Portfolio, FillOutcome]) -> None:
         """Directive 6 holds across the split."""
         portfolio, _ = reversal
         report = portfolio.reconcile()
@@ -427,9 +449,7 @@ class TestUnclosedPosition:
         assert trade.avg_exit_price is None
         assert trade.exit_reason is None
 
-    def test_no_cash_moves(
-        self, open_at_end: tuple[Portfolio, Trade, BarData]
-    ) -> None:
+    def test_no_cash_moves(self, open_at_end: tuple[Portfolio, Trade, BarData]) -> None:
         """Only the entry's commission has been charged; nothing was realised."""
         portfolio, _, _ = open_at_end
         assert portfolio.cash == INITIAL_CASH - Decimal("3")
@@ -468,7 +488,9 @@ class TestUnclosedPosition:
         assert snapshot.mtm_equity == snapshot.cash + snapshot.unrealized_pnl
         assert snapshot.closed_equity == portfolio.cash
 
-    def test_flat_run_produces_no_open_trade(self, portfolio: Portfolio, make_bar) -> None:
+    def test_flat_run_produces_no_open_trade(
+        self, portfolio: Portfolio, make_bar: Callable[..., BarData]
+    ) -> None:
         """A run that ends flat has nothing to flag."""
         assert portfolio.mark_open_position_at_end(make_bar(index=9), bar_index=9) is None
 
@@ -540,7 +562,7 @@ def replay_operations(
 order_operations = st.lists(
     st.tuples(
         st.booleans(),
-        st.integers(min_value=1, max_value=50),      # 0.01 .. 0.50 lots
+        st.integers(min_value=1, max_value=50),  # 0.01 .. 0.50 lots
         st.integers(min_value=90_000, max_value=110_000),  # 90.000 .. 110.000
     ),
     min_size=1,
@@ -603,9 +625,7 @@ class TestLedgerInvariant:
         for trade in portfolio.closed_trades:
             if trade.is_open_at_backtest_end:
                 continue
-            assert trade.net_pnl == sum(
-                (fill.cash_delta or ZERO for fill in trade.fills), ZERO
-            )
+            assert trade.net_pnl == sum((fill.cash_delta or ZERO for fill in trade.fills), ZERO)
             assert trade.net_pnl == trade.gross_pnl - trade.total_costs
 
     @settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.too_slow])
@@ -670,9 +690,7 @@ class TestLedgerGuards:
         trade_id = portfolio.allocate_trade_id()
         fill = make_fill("0.10", "95.000", Direction.LONG, trade_id, is_entry=True)
         with pytest.raises(PortfolioError, match="different instrument"):
-            portfolio.apply_fill(
-                replace(fill, instrument_id=InstrumentId("CADJPY")), bar_index=0
-            )
+            portfolio.apply_fill(replace(fill, instrument_id=InstrumentId("CADJPY")), bar_index=0)
 
     def test_adding_to_a_position_reweights_the_entry_price(
         self, portfolio: Portfolio, make_fill: Callable[..., ExecutionFill]
@@ -700,16 +718,19 @@ class TestLedgerGuards:
         trade_id = portfolio.allocate_trade_id()
         for index in range(3):
             portfolio.apply_fill(
-                make_fill(
-                    "0.10", "95.000", Direction.LONG, trade_id, is_entry=True, index=index
-                ),
+                make_fill("0.10", "95.000", Direction.LONG, trade_id, is_entry=True, index=index),
                 bar_index=index,
             )
         assert portfolio.allocate_trade_id() == trade_id
         portfolio.apply_fill(
             make_fill(
-                "0.30", "96.000", Direction.SHORT, trade_id,
-                is_entry=False, exit_reason=ExitReason.SIGNAL_EXIT, index=3,
+                "0.30",
+                "96.000",
+                Direction.SHORT,
+                trade_id,
+                is_entry=False,
+                exit_reason=ExitReason.SIGNAL_EXIT,
+                index=3,
             ),
             bar_index=3,
         )

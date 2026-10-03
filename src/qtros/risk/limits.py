@@ -2,8 +2,8 @@
 
 Phase 1 has no margin model. In its place, two independent caps bound every entry:
 
-* :class:`MaxLotRule` — a hard ceiling on any single order's size.
-* :class:`MaxNotionalExposureRule` — total open notional may not exceed a declared share
+* :class:`MaxLotRule` - a hard ceiling on any single order's size.
+* :class:`MaxNotionalExposureRule` - total open notional may not exceed a declared share
   of closed equity.
 
 A breach is a **rejection**, never a resize. Resizing down would let the strategy's
@@ -15,14 +15,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Final, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Final, Protocol, runtime_checkable
 
 from qtros.domain.enums import OrderRejectionCode
 from qtros.domain.errors import ConfigurationError
-from qtros.domain.instrument import InstrumentSpec
 from qtros.domain.money import quantize_money
-from qtros.domain.orders import TradeIntent
-from qtros.domain.signals import PortfolioView
+
+if TYPE_CHECKING:
+    from qtros.domain.instrument import InstrumentSpec
+    from qtros.domain.orders import TradeIntent
+    from qtros.domain.signals import PortfolioView
 
 ZERO: Final[Decimal] = Decimal("0")
 
@@ -83,7 +85,7 @@ def notional_value(quantity: Decimal, price: Decimal, spec: InstrumentSpec) -> D
         spec: Contract specification.
 
     Returns:
-        ``quantity × contract_size × price``, quantized to money precision.
+        ``quantity x contract_size x price``, quantized to money precision.
     """
     return quantize_money(quantity * spec.contract_size * price)
 
@@ -145,8 +147,8 @@ class MaxLotRule:
 class MaxNotionalExposureRule:
     """Cap on total open notional as a fraction of closed equity (G-1).
 
-    The proposed order's notional is added to whatever is already open — regardless of
-    direction, because a reversal briefly carries both legs' risk at the fill — and the
+    The proposed order's notional is added to whatever is already open - regardless of
+    direction, because a reversal briefly carries both legs' risk at the fill - and the
     sum is compared against the cap.
 
     Args:
@@ -186,7 +188,7 @@ class MaxNotionalExposureRule:
         Args:
             intent: The originating intent. Unused; part of the protocol.
             quantity: Sized order quantity.
-            reference_price: Price the notional is valued at — the decision-bar close.
+            reference_price: Price the notional is valued at - the decision-bar close.
             view: Account state, for closed equity and the open position.
             spec: Contract specification.
 
@@ -206,6 +208,6 @@ class MaxNotionalExposureRule:
             return RuleVerdict.reject(
                 OrderRejectionCode.EXCEEDS_NOTIONAL_CAP,
                 f"open notional {open_notional} + proposed {proposed} = {total} exceeds "
-                f"cap {cap} ({self.max_notional_fraction}× closed equity {view.closed_equity})",
+                f"cap {cap} ({self.max_notional_fraction}x closed equity {view.closed_equity})",
             )
         return RuleVerdict.ok()

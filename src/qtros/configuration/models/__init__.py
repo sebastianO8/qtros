@@ -17,7 +17,11 @@ from qtros.configuration.models.base import (
     provenance,
     reject_float_input,
 )
-from qtros.configuration.models.calendar import CalendarConfig, SessionWindowConfig, WeekBoundaryConfig
+from qtros.configuration.models.calendar import (
+    CalendarConfig,
+    SessionWindowConfig,
+    WeekBoundaryConfig,
+)
 from qtros.configuration.models.execution import ExecutionConfig
 from qtros.configuration.models.features import FeatureSetConfig, TransformRefConfig
 from qtros.configuration.models.friction import FrictionConfig

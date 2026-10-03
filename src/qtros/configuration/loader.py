@@ -13,8 +13,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Mapping
-from pathlib import Path
-from typing import Any, Final, TypeVar
+from typing import TYPE_CHECKING, Any, Final, TypeVar
 
 import yaml
 from pydantic import Field, ValidationError
@@ -31,6 +30,9 @@ from qtros.configuration.models.risk import RiskLimitsConfig
 from qtros.configuration.models.source import DataSourceConfig
 from qtros.configuration.models.strategy import StrategyConfig
 from qtros.domain.errors import ConfigurationError
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 CURRENT_SCHEMA_VERSION: Final[int] = 1
 

@@ -33,19 +33,23 @@ disagreed would defeat the purpose.
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Sequence
-from datetime import datetime
-from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 import numpy as np
+import numpy.typing as npt
 import polars as pl
 import structlog
 
 from qtros.domain.data_contracts import DatasetFingerprint, sorted_source_files
-from qtros.domain.enums import Timeframe
 from qtros.domain.errors import FingerprintError, SchemaContractError
-from qtros.domain.identifiers import InstrumentId
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from datetime import datetime
+    from pathlib import Path
+
+    from qtros.domain.enums import Timeframe
+    from qtros.domain.identifiers import InstrumentId
 
 _LOGGER: Final = structlog.get_logger(__name__)
 
@@ -122,7 +126,7 @@ def compute_fingerprint(
             f"timeframe={timeframe}\n"
             f"columns={','.join(FINGERPRINT_COLUMNS)}\n"
             f"row_count={frame.height}\n"
-        ).encode("utf-8")
+        ).encode()
     )
 
     if frame.height == 0:
@@ -210,7 +214,7 @@ def _encode_timestamps(series: pl.Series) -> bytes:
         )
 
     micros: pl.Series = series.dt.cast_time_unit("us").to_physical()
-    array: np.ndarray = np.ascontiguousarray(micros.to_numpy(), dtype="<i8")
+    array: npt.NDArray[np.int64] = np.ascontiguousarray(micros.to_numpy(), dtype="<i8")
     return array.tobytes()
 
 
@@ -230,8 +234,8 @@ def _encode_float_column(series: pl.Series, name: str) -> tuple[bytes, bytes]:
     """
     # copy=True is load-bearing: Polars may hand back a read-only zero-copy view, and
     # the negative-zero normalisation below writes into this array.
-    mask: np.ndarray = np.array(series.is_null().to_numpy(), dtype="u1", copy=True)
-    values: np.ndarray = np.array(
+    mask: npt.NDArray[np.uint8] = np.array(series.is_null().to_numpy(), dtype="u1", copy=True)
+    values: npt.NDArray[np.float64] = np.array(
         series.fill_null(0.0).cast(pl.Float64).to_numpy(), dtype="<f8", copy=True
     )
 
@@ -257,7 +261,7 @@ def _encode_bool_column(series: pl.Series) -> bytes:
     Returns:
         Contiguous unsigned byte data.
     """
-    array: np.ndarray = np.ascontiguousarray(
+    array: npt.NDArray[np.uint8] = np.ascontiguousarray(
         series.fill_null(value=False).cast(pl.UInt8).to_numpy(), dtype="u1"
     )
     return array.tobytes()

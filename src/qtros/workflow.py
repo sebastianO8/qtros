@@ -19,34 +19,44 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, time
-from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
-import polars as pl
 import structlog
 
 from qtros.analytics import PerformanceReport, analyze
 from qtros.analytics.render import render_report
-from qtros.configuration.loader import ResolvedBacktestConfig
-from qtros.configuration.models.source import DataSourceConfig
 from qtros.configuration.registry import StrategyRegistry, strategy_registry
 from qtros.data.coverage import analyze_coverage
 from qtros.data.fingerprint import compute_fingerprint
 from qtros.data.ingestion import IngestionService, default_path_guard
 from qtros.data.store import WarehouseStore
-from qtros.domain.data_contracts import CoverageReport, DatasetFingerprint, IngestionReport
 from qtros.domain.enums import IngestMode
 from qtros.domain.errors import CoverageError
 from qtros.domain.identifiers import InstrumentId, RunId
-from qtros.domain.timekeeping import SessionCalendar
-from qtros.engine.backtester import BacktestResult
 from qtros.engine.builder import RunComponents, run_from_config
 from qtros.persistence.writer import RunWriter, WrittenRun, run_id_for
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import polars as pl
+
+    from qtros.configuration.loader import ResolvedBacktestConfig
+    from qtros.configuration.models.source import DataSourceConfig
+    from qtros.domain.data_contracts import CoverageReport, DatasetFingerprint, IngestionReport
+    from qtros.domain.timekeeping import SessionCalendar
+    from qtros.engine.backtester import BacktestResult
 
 _LOGGER: Final = structlog.get_logger(__name__)
 
 BASE_INPUT_COLUMNS: Final[tuple[str, ...]] = (
-    "ts_utc", "open", "high", "low", "close", "volume", "is_synthetic",
+    "ts_utc",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "is_synthetic",
 )
 """The Layer 0 columns the feature pipeline may see. Everything else is bookkeeping."""
 
@@ -138,7 +148,9 @@ def load_bars(
             warehouse=str(warehouse_path),
         )
 
-    coverage = analyze_coverage(frame, instrument_id=instrument_id, timeframe=timeframe, calendar=calendar)
+    coverage = analyze_coverage(
+        frame, instrument_id=instrument_id, timeframe=timeframe, calendar=calendar
+    )
     if not coverage.is_clean:
         detail = {
             "unexpected_gaps": len(coverage.unexpected_gaps),
@@ -163,7 +175,9 @@ def load_bars(
         fingerprint=fingerprint.short_hash,
         clean=coverage.is_clean,
     )
-    return LoadedBars(frame=frame.select(BASE_INPUT_COLUMNS), fingerprint=fingerprint, coverage=coverage)
+    return LoadedBars(
+        frame=frame.select(BASE_INPUT_COLUMNS), fingerprint=fingerprint, coverage=coverage
+    )
 
 
 def execute(
@@ -199,10 +213,14 @@ def execute(
         rollover_time_local=resolved.instrument.rollover_time_local,
         rollover_tz=resolved.instrument.rollover_tz,
     )
-    loaded = load_bars(resolved, warehouse_path=warehouse_path, calendar=calendar, allow_gaps=allow_gaps)
+    loaded = load_bars(
+        resolved, warehouse_path=warehouse_path, calendar=calendar, allow_gaps=allow_gaps
+    )
     components, result = run_from_config(resolved, loaded.frame, registry=registry)
     extra = (WATERMARK_COVERAGE,) if not loaded.coverage.is_clean else ()
-    report = analyze(result, resolved, components.calendar, scored_at_utc=run_at, extra_watermarks=extra)
+    report = analyze(
+        result, resolved, components.calendar, scored_at_utc=run_at, extra_watermarks=extra
+    )
     run_id = run_id_for(resolved.strategy.experiment_id, components.hashes, run_at)
 
     html: str | None = None
@@ -238,8 +256,15 @@ def execute(
         publishable=report.gates.publishable,
         written=str(written.directory) if written else None,
     )
-    return RunOutcome(run_id=run_id, components=components, result=result, report=report,
-                      loaded=loaded, written=written, html=html)
+    return RunOutcome(
+        run_id=run_id,
+        components=components,
+        result=result,
+        report=report,
+        loaded=loaded,
+        written=written,
+        html=html,
+    )
 
 
 def ingest_source(
@@ -262,7 +287,9 @@ def ingest_source(
     Returns:
         The ingestion report.
     """
-    guard = default_path_guard(input_root=input_root, results_root=results_root, warehouse_path=warehouse_path)
+    guard = default_path_guard(
+        input_root=input_root, results_root=results_root, warehouse_path=warehouse_path
+    )
     warehouse_path.parent.mkdir(parents=True, exist_ok=True)
     with WarehouseStore(warehouse_path) as store:
         store.initialize_schema()
@@ -271,4 +298,11 @@ def ingest_source(
         return service.ingest(handle, mode=mode)
 
 
-__all__ = ["BASE_INPUT_COLUMNS", "LoadedBars", "RunOutcome", "execute", "ingest_source", "load_bars"]
+__all__ = [
+    "BASE_INPUT_COLUMNS",
+    "LoadedBars",
+    "RunOutcome",
+    "execute",
+    "ingest_source",
+    "load_bars",
+]

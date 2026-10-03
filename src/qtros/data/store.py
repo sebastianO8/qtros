@@ -21,21 +21,24 @@ Storage conventions:
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from types import TracebackType
-from typing import Final, Self
+from typing import TYPE_CHECKING, Final, Self
 
 import duckdb
-import polars as pl
 import structlog
 
 from qtros.domain.enums import IngestMode, Timeframe
 from qtros.domain.errors import WarehouseError
 from qtros.domain.identifiers import InstrumentId, SourceId
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from types import TracebackType
+
+    import polars as pl
 
 _LOGGER: Final = structlog.get_logger(__name__)
 
@@ -106,6 +109,27 @@ CREATE TABLE IF NOT EXISTS {INGESTION_LOG_TABLE} (
     finished_at_utc   TIMESTAMPTZ NOT NULL
 );
 """
+
+
+def _as_int(value: object) -> int:
+    """Coerce a DuckDB scalar to ``int`` without trusting its static type."""
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    return int(str(value))
+
+
+def _as_datetime(value: object) -> datetime:
+    """Require a scalar to be a datetime.
+
+    Raises:
+        WarehouseError: If it is not, which means the frame's timestamp column is not
+            what the schema promises.
+    """
+    if isinstance(value, datetime):
+        return value
+    raise WarehouseError("Timestamp bound is not a datetime", value=repr(value))
 
 
 @dataclass(frozen=True, slots=True)
@@ -369,8 +393,8 @@ class WarehouseStore:
 
             if mode is IngestMode.REPLACE_RANGE:
                 bounds: tuple[datetime, datetime] = (
-                    ordered["ts_utc"].min(),  # type: ignore[assignment]
-                    ordered["ts_utc"].max(),  # type: ignore[assignment]
+                    _as_datetime(ordered["ts_utc"].min()),
+                    _as_datetime(ordered["ts_utc"].max()),
                 )
                 deleted_before: int = before
                 conn.execute(
@@ -558,7 +582,7 @@ class WarehouseStore:
 
         first: datetime | None = row[1] if isinstance(row[1], datetime) else None
         last: datetime | None = row[2] if isinstance(row[2], datetime) else None
-        return StoredRange(instrument_id, timeframe, int(row[0]), first, last)  # type: ignore[arg-type]
+        return StoredRange(instrument_id, timeframe, _as_int(row[0]), first, last)
 
     def known_series(self) -> tuple[tuple[InstrumentId, Timeframe], ...]:
         """Return every (instrument, timeframe) pair present in the warehouse.
@@ -570,9 +594,7 @@ class WarehouseStore:
             f"SELECT DISTINCT instrument_id, timeframe FROM {BARS_TABLE} "
             "ORDER BY instrument_id, timeframe;"
         ).fetchall()
-        return tuple(
-            (InstrumentId(str(row[0])), Timeframe(str(row[1]))) for row in rows
-        )
+        return tuple((InstrumentId(str(row[0])), Timeframe(str(row[1]))) for row in rows)
 
     # -- helpers -----------------------------------------------------------------------
 
@@ -596,7 +618,7 @@ class WarehouseStore:
             f"SELECT COUNT(*) FROM {BARS_TABLE} WHERE instrument_id = ? AND timeframe = ?;",
             [str(instrument_id), str(timeframe)],
         ).fetchone()
-        return 0 if row is None else int(row[0])  # type: ignore[arg-type]
+        return 0 if row is None else _as_int(row[0])
 
     @staticmethod
     def _require_aware(value: datetime, field_name: str) -> None:

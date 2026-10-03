@@ -15,12 +15,16 @@ exact equality rather than tolerate a tolerance that a real bug could hide benea
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import time
 from decimal import ROUND_DOWN, ROUND_FLOOR, ROUND_UP, Decimal
+from typing import TYPE_CHECKING
 
 from qtros.domain.enums import AssetClass, Direction
 from qtros.domain.errors import ConfigurationError
-from qtros.domain.identifiers import InstrumentId
+
+if TYPE_CHECKING:
+    from datetime import time
+
+    from qtros.domain.identifiers import InstrumentId
 
 ZERO: Decimal = Decimal("0")
 

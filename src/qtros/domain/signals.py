@@ -15,18 +15,21 @@ prevents state leaking across walk-forward folds.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
-from datetime import datetime
 from decimal import Decimal
-from typing import Any, Final
+from typing import TYPE_CHECKING, Final
 
 from qtros.domain.errors import QtrosError
-from qtros.domain.execution import PositionState
-from qtros.domain.identifiers import InstrumentId
-from qtros.domain.instrument import InstrumentSpec
-from qtros.domain.market import BarData
-from qtros.domain.orders import TradeIntent
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+    from datetime import datetime
+
+    from qtros.domain.execution import PositionState
+    from qtros.domain.identifiers import InstrumentId
+    from qtros.domain.instrument import InstrumentSpec
+    from qtros.domain.market import BarData
+    from qtros.domain.orders import TradeIntent
 
 ZERO: Final[Decimal] = Decimal("0")
 
@@ -204,10 +207,10 @@ class StrategyState:
     """
 
     bars_seen: int = 0
-    values: Mapping[str, Any] = field(default_factory=dict)
+    values: Mapping[str, object] = field(default_factory=dict)
     last_signal_ts_utc: datetime | None = None
 
-    def advanced(self, **updates: Any) -> StrategyState:  # noqa: ANN401
+    def advanced(self, **updates: object) -> StrategyState:
         """Return a successor state with the bar counter incremented.
 
         Args:
@@ -217,7 +220,7 @@ class StrategyState:
             A new state. The original is unchanged, which is what makes a backtest
             re-runnable and a walk-forward fold unable to inherit its predecessor's state.
         """
-        merged: dict[str, Any] = dict(self.values)
+        merged: dict[str, object] = dict(self.values)
         merged.update(updates)
         return replace(self, bars_seen=self.bars_seen + 1, values=merged)
 

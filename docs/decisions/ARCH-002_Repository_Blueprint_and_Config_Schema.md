@@ -281,10 +281,11 @@ All models inherit a frozen, `extra="forbid"` base. `extra="forbid"` matters mor
 ```python
 # configuration/models/base.py
 
+
 class ProvenanceClass(StrEnum):
-    RUN_AFFECTING    = "run"       # changes which fills occur, or their cost
-    REPORT_AFFECTING = "report"    # changes how a fixed ledger is scored
-    OPERATIONAL      = "operational"  # excluded from all hashing (D-1)
+    RUN_AFFECTING = "run"  # changes which fills occur, or their cost
+    REPORT_AFFECTING = "report"  # changes how a fixed ledger is scored
+    OPERATIONAL = "operational"  # excluded from all hashing (D-1)
 
 
 def provenance(kind: ProvenanceClass) -> dict[str, str]:
@@ -301,26 +302,27 @@ class QtrosConfig(BaseModel):
     model_config: frozen=True, extra="forbid", validate_default=True,
                   use_enum_values=False, arbitrary_types_allowed=False
     """
-    schema_version: PositiveInt   # D-? five-year migration hook; see §4.8
+
+    schema_version: PositiveInt  # D-? five-year migration hook; see §4.8
 ```
 
 ### 4.2 Instrument (C-7)
 
 ```python
 class InstrumentConfig(QtrosConfig):
-    instrument_id:        InstrumentId
-    display_name:         str
-    asset_class:          AssetClass
-    base_currency:        CurrencyCode
-    quote_currency:       CurrencyCode
-    tick_size:            StrictDecimal
-    contract_size:        StrictDecimal
-    min_lot:              StrictDecimal
-    lot_step:             StrictDecimal
+    instrument_id: InstrumentId
+    display_name: str
+    asset_class: AssetClass
+    base_currency: CurrencyCode
+    quote_currency: CurrencyCode
+    tick_size: StrictDecimal
+    contract_size: StrictDecimal
+    min_lot: StrictDecimal
+    lot_step: StrictDecimal
     typical_spread_ticks: StrictDecimal
-    calendar_id:          str            # → config/calendars/
-    rollover_time_local:  time
-    rollover_tz:          TimeZoneName    # validated against zoneinfo
+    calendar_id: str  # → config/calendars/
+    rollover_time_local: time
+    rollover_tz: TimeZoneName  # validated against zoneinfo
 ```
 
 ```yaml
@@ -347,20 +349,20 @@ That last field is the Cycle 1 DST lesson made declarative. The FX trading day b
 
 ```python
 class SessionWindowConfig(QtrosConfig):
-    name:        str            # "asian", "london", "ny_overlap"
-    open_local:  time
+    name: str  # "asian", "london", "ny_overlap"
+    open_local: time
     close_local: time
-    timezone:    TimeZoneName
-    weekdays:    frozenset[Weekday]
+    timezone: TimeZoneName
+    weekdays: frozenset[Weekday]
 
 
 class CalendarConfig(QtrosConfig):
-    calendar_id:      str
-    week_open:        WeekBoundaryConfig
-    week_close:       WeekBoundaryConfig
-    sessions:         tuple[SessionWindowConfig, ...]
-    holidays:         tuple[date, ...]
-    dst_policy:       DstPolicy   # STRICT_RAISE | ...
+    calendar_id: str
+    week_open: WeekBoundaryConfig
+    week_close: WeekBoundaryConfig
+    sessions: tuple[SessionWindowConfig, ...]
+    holidays: tuple[date, ...]
+    dst_policy: DstPolicy  # STRICT_RAISE | ...
 ```
 
 `DstPolicy.STRICT_RAISE` is the Phase 1 default: a nonexistent local time (spring forward) or ambiguous local time (fall back) raises rather than resolving by heuristic. Loud beats plausible.
@@ -378,17 +380,17 @@ class ColumnMappingConfig(QtrosConfig):
 
 
 class DataSourceConfig(QtrosConfig):
-    source_id:         str
-    instrument_id:     InstrumentId
-    timeframe:         Timeframe
-    root_path:         Path              # validated: inside declared input root
-    glob_pattern:      str
-    file_format:       FileFormat
-    columns:           ColumnMappingConfig
-    timestamp_format:  str
-    declared_tz:       TimeZoneName | FixedOffset   # required; never inferred
-    timestamps_are_bar_open: bool        # vs. bar close — silently flips signals
-    gap_policy:        GapPolicy
+    source_id: str
+    instrument_id: InstrumentId
+    timeframe: Timeframe
+    root_path: Path  # validated: inside declared input root
+    glob_pattern: str
+    file_format: FileFormat
+    columns: ColumnMappingConfig
+    timestamp_format: str
+    declared_tz: TimeZoneName | FixedOffset  # required; never inferred
+    timestamps_are_bar_open: bool  # vs. bar close — silently flips signals
+    gap_policy: GapPolicy
     max_tolerable_gap: timedelta
 ```
 
@@ -398,23 +400,23 @@ Two fields worth defending. `declared_tz` has no default and no inference path �
 
 ```python
 class SignificancePolicyConfig(QtrosConfig):
-    tier:                 SignificanceTier      # STANDARD | LOW_FREQUENCY
-    min_trades:           PositiveInt
-    pooling_instruments:  frozenset[InstrumentId]  # required iff LOW_FREQUENCY
+    tier: SignificanceTier  # STANDARD | LOW_FREQUENCY
+    min_trades: PositiveInt
+    pooling_instruments: frozenset[InstrumentId]  # required iff LOW_FREQUENCY
 
     # validator: STANDARD ⇒ min_trades == 400, pooling empty
     #            LOW_FREQUENCY ⇒ min_trades >= 60, len(pooling) >= 4
 
 
 class StrategyConfig(QtrosConfig):
-    strategy_id:           str            # registry key (D-4), not an import path
-    strategy_version:      SemanticVersion
-    experiment_id:         str            # §5 registry key, e.g. AUDJPY_SWEEP
-    mechanism_hypothesis:  str            # Directive 5 — required, min_length
-    supported_timeframes:  frozenset[Timeframe]
-    parameters:            Mapping[str, StrictDecimal | int | bool | str]
-    significance:          SignificancePolicyConfig
-    declared_at_utc:       datetime       # C-2 anti-retroactivity evidence
+    strategy_id: str  # registry key (D-4), not an import path
+    strategy_version: SemanticVersion
+    experiment_id: str  # §5 registry key, e.g. AUDJPY_SWEEP
+    mechanism_hypothesis: str  # Directive 5 — required, min_length
+    supported_timeframes: frozenset[Timeframe]
+    parameters: Mapping[str, StrictDecimal | int | bool | str]
+    significance: SignificancePolicyConfig
+    declared_at_utc: datetime  # C-2 anti-retroactivity evidence
 ```
 
 `mechanism_hypothesis` being a required non-empty field is Directive 5 enforced at config-parse time. You cannot start a backtest without having written down why you expect it to work. That's a thirty-second cost that reliably prevents the "the metrics looked good so I kept it" failure.
@@ -425,33 +427,33 @@ class StrategyConfig(QtrosConfig):
 
 ```python
 class RiskLimitsConfig(QtrosConfig):
-    max_drawdown_pct:       StrictDecimal
-    max_drawdown_basis:     DrawdownBasis = DrawdownBasis.MARK_TO_MARKET   # C-1
-    risk_per_trade_pct:     StrictDecimal
-    atr_stop_multiple:      StrictDecimal
-    atr_lookback_bars:      PositiveInt
+    max_drawdown_pct: StrictDecimal
+    max_drawdown_basis: DrawdownBasis = DrawdownBasis.MARK_TO_MARKET  # C-1
+    risk_per_trade_pct: StrictDecimal
+    atr_stop_multiple: StrictDecimal
+    atr_lookback_bars: PositiveInt
     max_concurrent_positions: PositiveInt
-    max_daily_loss_pct:     StrictDecimal | None      # Phase 2
-    daily_consistency_pct:  StrictDecimal | None      # Phase 2, prop 50% rule
-    on_limit_breach:        BreachAction              # HALT_SESSION | HALT_RUN
+    max_daily_loss_pct: StrictDecimal | None  # Phase 2
+    daily_consistency_pct: StrictDecimal | None  # Phase 2, prop 50% rule
+    on_limit_breach: BreachAction  # HALT_SESSION | HALT_RUN
 
 
 class FrictionConfig(QtrosConfig):
-    commission_model:     CommissionModel      # PER_LOT | PER_NOTIONAL | NONE
-    commission_value:     StrictDecimal
-    spread_model:         SpreadModel          # FIXED_TICKS | INSTRUMENT_TYPICAL
-    spread_value_ticks:   StrictDecimal | None
-    slippage_model:       SlippageModel        # FIXED_TICKS | ATR_FRACTION
-    slippage_value:       StrictDecimal
+    commission_model: CommissionModel  # PER_LOT | PER_NOTIONAL | NONE
+    commission_value: StrictDecimal
+    spread_model: SpreadModel  # FIXED_TICKS | INSTRUMENT_TYPICAL
+    spread_value_ticks: StrictDecimal | None
+    slippage_model: SlippageModel  # FIXED_TICKS | ATR_FRACTION
+    slippage_value: StrictDecimal
     # validator: NONE commission requires explicit acknowledge_zero_friction=True
 
 
 class ExecutionConfig(QtrosConfig):
-    timing:              ExecutionTiming = ExecutionTiming.NEXT_BAR_OPEN
-    path_assumption:     PathAssumption = PathAssumption.ADVERSE_FIRST   # C-1
-    zero_volume_policy:  ZeroVolumePolicy = ZeroVolumePolicy.REJECT_FILL
-    sub_min_lot_policy:  SubMinLotPolicy = SubMinLotPolicy.REJECT_ORDER
-    allow_same_bar_close_fill: bool = False   # watermarks report if True
+    timing: ExecutionTiming = ExecutionTiming.NEXT_BAR_OPEN
+    path_assumption: PathAssumption = PathAssumption.ADVERSE_FIRST  # C-1
+    zero_volume_policy: ZeroVolumePolicy = ZeroVolumePolicy.REJECT_FILL
+    sub_min_lot_policy: SubMinLotPolicy = SubMinLotPolicy.REJECT_ORDER
+    allow_same_bar_close_fill: bool = False  # watermarks report if True
 ```
 
 `FrictionConfig` has no zero default and requires an explicit acknowledgment flag to disable costs. Frictionless backtests are the single most common source of a phantom edge, and Directive 2 makes them a violation — so the schema makes them awkward to express by accident and impossible to express silently.
@@ -460,27 +462,27 @@ class ExecutionConfig(QtrosConfig):
 
 ```python
 class SharpeConventionConfig(QtrosConfig):
-    return_basis:         ReturnBasis = ReturnBasis.DAILY_CLOSED_EQUITY   # C-5
-    return_type:          ReturnType = ReturnType.ARITHMETIC
+    return_basis: ReturnBasis = ReturnBasis.DAILY_CLOSED_EQUITY  # C-5
+    return_type: ReturnType = ReturnType.ARITHMETIC
     annualization_factor: PositiveInt = 252
-    risk_free_rate:       StrictDecimal = Decimal("0.0")
+    risk_free_rate: StrictDecimal = Decimal("0.0")
     exclude_non_trading_days: bool = True
 
 
 class ConcentrationConfig(QtrosConfig):
-    top_n_trades:              PositiveInt = 5
-    quarterly_threshold_pct:   StrictDecimal = Decimal("60.0")   # gate
-    lifetime_threshold_pct:    StrictDecimal = Decimal("60.0")   # kill criterion
-    boundary_is_inclusive:     bool = False    # tested explicitly, ARCH-001 §5.2
-    trade_period_attribution:  PeriodAttribution = PeriodAttribution.CLOSE_DATE
+    top_n_trades: PositiveInt = 5
+    quarterly_threshold_pct: StrictDecimal = Decimal("60.0")  # gate
+    lifetime_threshold_pct: StrictDecimal = Decimal("60.0")  # kill criterion
+    boundary_is_inclusive: bool = False  # tested explicitly, ARCH-001 §5.2
+    trade_period_attribution: PeriodAttribution = PeriodAttribution.CLOSE_DATE
 
 
 class GateThresholdsConfig(QtrosConfig):
-    min_sharpe:           StrictDecimal = Decimal("1.3")
-    min_profit_factor:    StrictDecimal = Decimal("1.4")
-    max_drawdown_pct:     StrictDecimal = Decimal("10.0")
+    min_sharpe: StrictDecimal = Decimal("1.3")
+    min_profit_factor: StrictDecimal = Decimal("1.4")
+    max_drawdown_pct: StrictDecimal = Decimal("10.0")
     oos_sharpe_decay_max_pct: StrictDecimal = Decimal("30.0")
-    wfo_min_profit_factor:    StrictDecimal = Decimal("1.15")
+    wfo_min_profit_factor: StrictDecimal = Decimal("1.15")
 ```
 
 Constitutional thresholds live in `config/reporting/constitution_v3_2.yaml`, not in Python constants. Two reasons: mandate §3 forbids magic constants, and when the constitution reaches v3.3 the diff is a config file with a version in its name — so a 2026 result and a 2027 result carry evidence of *which* rulebook scored them.
@@ -489,19 +491,19 @@ Constitutional thresholds live in `config/reporting/constitution_v3_2.yaml`, not
 
 ```python
 class BacktestConfig(QtrosConfig):
-    run_label:        str = Field(..., **provenance(OPERATIONAL))
-    instrument_id:    InstrumentId
-    source_id:        str
-    date_range:       DateRangeConfig
-    feature_set_id:   str
-    strategy_ref:     StrategyRef            # id + version
-    risk_ref:         str
-    friction_ref:     str
-    execution:        ExecutionConfig
-    reporting_ref:    str = Field(..., **provenance(REPORT_AFFECTING))
-    rng_seed:         int = 0
-    paths:            PathsConfig = Field(..., **provenance(OPERATIONAL))
-    runtime:          RuntimeConfig = Field(..., **provenance(OPERATIONAL))
+    run_label: str = Field(..., **provenance(OPERATIONAL))
+    instrument_id: InstrumentId
+    source_id: str
+    date_range: DateRangeConfig
+    feature_set_id: str
+    strategy_ref: StrategyRef  # id + version
+    risk_ref: str
+    friction_ref: str
+    execution: ExecutionConfig
+    reporting_ref: str = Field(..., **provenance(REPORT_AFFECTING))
+    rng_seed: int = 0
+    paths: PathsConfig = Field(..., **provenance(OPERATIONAL))
+    runtime: RuntimeConfig = Field(..., **provenance(OPERATIONAL))
 ```
 
 ```yaml

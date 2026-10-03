@@ -24,7 +24,7 @@ Claude Code removes the air gap. It edits files directly. The five directives be
 After generating or modifying **any** `.py` file under `src/` or `tests/`, Claude Code MUST run the verification gate before doing anything else:
 
 ```bash
-source .venv/bin/activate && python scripts/check_sources.py && python -m pytest -q
+source .venv/bin/activate && python scripts/check_sources.py && python -m pytest -q && lint-imports && ruff check . && ruff format --check . && mypy
 ```
 
 Both commands must exit 0. The gate runs after every logical edit, not once at the end of a task. When a task touches several files that only make sense together (for example a new module plus its test file), the gate runs as soon as the set is importable, and again at the end.
@@ -113,6 +113,28 @@ Supplementary PI rulings from the same message:
 
 ## 2. Verified baseline
 
+### 2.000 Merged to `main` with the full toolchain green (2026-10-03)
+
+| Check | Result |
+|---|---|
+| `python scripts/check_sources.py` | 53 tracked modules + 15 package markers current |
+| `python -m pytest -q` | 290 passed |
+| `lint-imports` | 7 contracts kept, 0 broken |
+| `ruff check .` | All checks passed |
+| `ruff format --check .` | All files formatted |
+| `mypy` | Success: no issues found in 90 source files |
+
+**The A1 gate is now the full toolchain.** From this point every `.py` edit must leave all six checks green. Suppression rules from A2 still apply: no `# noqa`, `# type: ignore`, or per-file ignore may be added to reach green without a reason in the comment and a line in the check-in.
+
+Linting sprint notes (PI ruling 2026-10-03):
+- `ruff --fix` + `ruff format` applied repository-wide (the first-ever formatting pass; large mechanical diff).
+- Imports used only in annotations moved under `TYPE_CHECKING`; `cli.py` is exempt because typer evaluates `Annotated[...]` at runtime, and pydantic config models are declared `runtime-evaluated-base-classes` so their field types stay live.
+- `domain/` is now free of explicit `Any` (`QtrosError.context` and `StrategyState.values` are `object`-typed).
+- Pre-existing mypy debt in `data/` cleared: DuckDB scalars coerced through typed helpers, numpy arrays typed, polars DST arguments typed as literals, `Datetime` dtype narrowed before reading `time_zone`.
+- `ReconciliationFailed` renamed `ReconciliationFailedError`. `LookaheadDetected` keeps its name with a justified `noqa`: it names a finding, and archived docs cite it.
+- Ambiguous Unicode (`×`, `–`, `→`) replaced with ASCII in code, comments, and docstrings.
+- No behaviour change: the test suite and `check_sources.py` needles were unchanged throughout.
+
 ### 2.00 Phase 1 complete (2026-10-03, branch `feat/arch-008`)
 
 | Check | Result |
@@ -165,7 +187,7 @@ Open for PI ruling from this pass: sizing basis is closed equity (`risk/sizing.p
 | `mypy` | 25 errors in 11 files, 13 of them in `data/store.py` |
 | `lint-imports` | Cannot run: layer `qtros.cli` does not exist yet |
 
-The hard gate under A1 is `check_sources.py` + `pytest`. **import-linter joined the gate on 2026-10-03** (PI ruling; 7/7 kept). Ruff and mypy remain advisory until the PI approves a cleanup pass. Claude Code must not silently widen `ignore` lists to reach green.
+The hard gate under A1 is the full toolchain since 2026-10-03: `check_sources.py`, `pytest`, `lint-imports`, `ruff check`, `ruff format --check`, and `mypy`. Claude Code must not silently widen `ignore` lists to reach green.
 
 ### Open items surfaced during adoption (for PI ruling, not for autonomous action)
 
@@ -198,7 +220,8 @@ The hard gate under A1 is `check_sources.py` + `pytest`. **import-linter joined 
 | 3 | ✅ `engine/backtester.py`: seven-step G-3 loop, protective levels, reconciliation inside `run()` | A1 | A5 #4 |
 | 4 | ✅ Timekeeping, config tree, builder, analytics, persistence (Day 6) | A1 | A5 #4 |
 | 5 | ✅ `cli.py`, `workflow.py`, DuckDB-backed `qtros run`, HTML render, registry export; import-linter green | A1 + import-linter | A5 #5 |
-| 6 | Phase 2 prep: merge `feat/arch-008` to `main`; ruff/mypy sprint; `uv.lock`; real Dukascopy ingest + first real-data run | A1 + full toolchain | A5 |
+| 6 | ✅ Merged to `main`; ruff/mypy sprint complete; full toolchain is the gate | A1 (full) | A5 |
+| 7 | Phase 2: `uv.lock`; real Dukascopy ingest + first real-data run; tune G-1 limits on real volatility; `audjpy_asian_sweep`; prop-firm daily rules | A1 (full) | A5 |
 
 Each step begins by re-running the gate on the untouched tree, so a red inherited from outside the session is reported rather than blamed on the step.
 

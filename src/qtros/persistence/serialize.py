@@ -21,7 +21,7 @@ from typing import Any
 from pydantic import BaseModel
 
 
-def to_jsonable(value: object) -> Any:  # noqa: ANN401 — recursive JSON structure
+def to_jsonable(value: object) -> Any:
     """Convert a value into something :func:`json.dumps` accepts without loss.
 
     Args:

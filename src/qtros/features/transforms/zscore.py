@@ -92,9 +92,7 @@ class RollingZScore(TransformBase):
             inexplicable signal.
         """
         source: pl.Expr = pl.col(self._source)
-        mean: pl.Expr = source.rolling_mean(
-            window_size=self._window, min_samples=self._min_periods
-        )
+        mean: pl.Expr = source.rolling_mean(window_size=self._window, min_samples=self._min_periods)
         deviation: pl.Expr = source.rolling_std(
             window_size=self._window, min_samples=self._min_periods, ddof=1
         )

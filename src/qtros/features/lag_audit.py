@@ -23,11 +23,9 @@ a perfectly causal transform.
 from __future__ import annotations
 
 import random
-from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import Any, Final
+from typing import TYPE_CHECKING, Any, Final
 
-import polars as pl
 import structlog
 
 from qtros.domain.errors import DetectorVerificationError, LookaheadDetected
@@ -38,13 +36,18 @@ from qtros.domain.feature_contracts import (
     LagAuditReport,
 )
 
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    import polars as pl
+
 _LOGGER: Final = structlog.get_logger(__name__)
 
 DEFAULT_PROBE_COUNT: Final[int] = 25
 """Probes sampled by default.
 
-Each probe recomputes the whole prefix, so the audit costs roughly ``probes × n`` row
-operations. On three years of five-minute bars that is seconds, not minutes — but it is
+Each probe recomputes the whole prefix, so the audit costs roughly ``probes x n`` row
+operations. On three years of five-minute bars that is seconds, not minutes - but it is
 not free, which is why CI runs the full audit against a fixture and a production run
 samples. The probe indices are recorded in the report so a run's coverage is auditable
 rather than assumed.
@@ -54,7 +57,7 @@ DEFAULT_TOLERANCE: Final[float] = 0.0
 """Exact equality by default.
 
 Tail truncation leaves every windowed and cumulative computation bit-identical, so exact
-comparison is achievable — and a tolerance is a place where a small real leak can hide
+comparison is achievable - and a tolerance is a place where a small real leak can hide
 beneath the threshold. The parameter exists for transforms that legitimately involve
 iterative solvers; using it otherwise weakens the guarantee.
 """
@@ -90,7 +93,7 @@ class LagAuditor:
         """Run the prefix-invariance audit.
 
         Args:
-            frame: Bars to audit against. Should be representative — a frame with no DST
+            frame: Bars to audit against. Should be representative - a frame with no DST
                 transition and no session gap will not exercise the features that break
                 on them.
             transforms: Transforms to audit.
@@ -225,7 +228,7 @@ class LagAuditor:
 
         Probes start at the warmup boundary. Probing inside the warmup window would
         compare null against null and pass trivially, consuming a probe while testing
-        nothing — the first row where a feature actually has a value is the first row
+        nothing - the first row where a feature actually has a value is the first row
         where the question is meaningful.
 
         The first valid row and the last two rows are always probed. The final rows are
@@ -314,7 +317,7 @@ def verify_detector(
     return report
 
 
-def _values_differ(left: Any, right: Any, tolerance: float) -> bool:  # noqa: ANN401
+def _values_differ(left: Any, right: Any, tolerance: float) -> bool:
     """Compare two feature values, treating nulls as significant.
 
     Args:
@@ -329,7 +332,7 @@ def _values_differ(left: Any, right: Any, tolerance: float) -> bool:  # noqa: AN
         A null on one side and a value on the other counts as a difference. Above the
         warmup boundary the prefix has enough history for every transform, so a null
         appearing only in the truncated computation means the feature needed future data
-        to produce its value — which is the very thing being tested for.
+        to produce its value - which is the very thing being tested for.
     """
     if left is None and right is None:
         return False

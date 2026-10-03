@@ -18,15 +18,17 @@ gap or a fall-back overlap raises rather than resolving by heuristic. Loud beats
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
-from typing import Final
+from typing import TYPE_CHECKING, Final
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from qtros.domain.enums import DstPolicy, GapKind, Timeframe
 from qtros.domain.errors import ConfigurationError, TimezoneError
 from qtros.domain.identifiers import CalendarId
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 _ONE_DAY: Final = timedelta(days=1)
 _ONE_MINUTE: Final = timedelta(minutes=1)
@@ -105,7 +107,9 @@ class WeekBoundary:
     def __post_init__(self) -> None:
         """Validate the weekday and zone."""
         if not 0 <= self.weekday <= 6:
-            raise ConfigurationError("weekday must be 0 (Monday) .. 6 (Sunday)", weekday=self.weekday)
+            raise ConfigurationError(
+                "weekday must be 0 (Monday) .. 6 (Sunday)", weekday=self.weekday
+            )
         _zone(self.timezone)
 
 
@@ -136,7 +140,9 @@ class SessionWindow:
         if not self.name:
             raise ConfigurationError("session window needs a name")
         if any(not 0 <= d <= 6 for d in self.weekdays) or not self.weekdays:
-            raise ConfigurationError("session weekdays must be a non-empty subset of 0..6", name=self.name)
+            raise ConfigurationError(
+                "session weekdays must be a non-empty subset of 0..6", name=self.name
+            )
         if self.open_local == self.close_local:
             raise ConfigurationError("session open and close cannot coincide", name=self.name)
         _zone(self.timezone)
@@ -292,7 +298,9 @@ class SessionCalendar:
         close_at = self._next_boundary_after(self._week_close, open_at)
         return open_at <= instant_utc < close_at
 
-    def _latest_boundary_at_or_before(self, boundary: WeekBoundary, instant_utc: datetime) -> datetime:
+    def _latest_boundary_at_or_before(
+        self, boundary: WeekBoundary, instant_utc: datetime
+    ) -> datetime:
         """Return the most recent occurrence of a weekly boundary at or before an instant."""
         local = instant_utc.astimezone(_zone(boundary.timezone))
         for back in range(8):
@@ -379,12 +387,16 @@ class SessionCalendar:
             close_dt = localize(
                 datetime.combine(close_day, window.close_local), window.timezone, self._dst_policy
             )
-            bounds.append(SessionBounds(window.name, open_dt.astimezone(UTC), close_dt.astimezone(UTC)))
+            bounds.append(
+                SessionBounds(window.name, open_dt.astimezone(UTC), close_dt.astimezone(UTC))
+            )
         return tuple(bounds)
 
     # -- Layer 0 surface (SessionCalendarLike) -----------------------------------------
 
-    def expected_bar_count(self, start_utc: datetime, end_utc: datetime, timeframe: Timeframe) -> int:
+    def expected_bar_count(
+        self, start_utc: datetime, end_utc: datetime, timeframe: Timeframe
+    ) -> int:
         """Return how many bars should open in ``[start, end)`` while the market is open.
 
         Args:
@@ -397,7 +409,11 @@ class SessionCalendar:
         """
         self._require_aware(start_utc)
         self._require_aware(end_utc)
-        return sum(1 for instant in self._bar_opens(start_utc, end_utc, timeframe.duration) if self.is_open_at(instant))
+        return sum(
+            1
+            for instant in self._bar_opens(start_utc, end_utc, timeframe.duration)
+            if self.is_open_at(instant)
+        )
 
     def classify_gap(self, start_utc: datetime, end_utc: datetime) -> GapKind:
         """Attribute a discontinuity between two consecutive bars.

@@ -14,14 +14,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Final, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Final, Protocol, runtime_checkable
 
 from qtros.domain.enums import Direction, OrderRejectionCode
 from qtros.domain.errors import ConfigurationError
-from qtros.domain.instrument import InstrumentSpec
 from qtros.domain.money import quantize_money
-from qtros.domain.orders import TradeIntent
-from qtros.domain.signals import PortfolioView
+
+if TYPE_CHECKING:
+    from qtros.domain.instrument import InstrumentSpec
+    from qtros.domain.orders import TradeIntent
+    from qtros.domain.signals import PortfolioView
 
 ZERO: Final[Decimal] = Decimal("0")
 
@@ -114,7 +116,9 @@ class FixedFractionalSizer:
         stop: Decimal | None = intent.stop_loss
         if stop is None:
             return SizingResult(
-                ZERO, ZERO, ZERO,
+                ZERO,
+                ZERO,
+                ZERO,
                 code=OrderRejectionCode.NO_STOP_FOR_SIZING,
                 detail="entry intent carries no stop_loss; fixed-fractional sizing needs one",
             )
@@ -125,7 +129,9 @@ class FixedFractionalSizer:
         )
         if wrong_side:
             return SizingResult(
-                ZERO, ZERO, ZERO,
+                ZERO,
+                ZERO,
+                ZERO,
                 code=OrderRejectionCode.NO_STOP_FOR_SIZING,
                 detail=f"stop {stop} is not on the losing side of reference {reference_price}",
             )

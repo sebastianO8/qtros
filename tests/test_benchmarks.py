@@ -35,22 +35,25 @@ Every figure below is one of those, and none was read out of a program.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 import pytest
 
 from qtros.domain.enums import Direction, ExitReason
-from qtros.domain.execution import ExecutionFill, Trade
 from qtros.domain.identifiers import SequentialIdFactory
-from qtros.domain.instrument import InstrumentSpec
-from qtros.domain.market import BarData
 from qtros.domain.orders import ApprovedOrder
 from qtros.engine.portfolio import Portfolio
 from qtros.execution.broker import SimulatedBroker
 from qtros.execution.friction import StandardFrictionModel
-
 from tests.conftest import INITIAL_CASH
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from qtros.domain.execution import ExecutionFill, Trade
+    from qtros.domain.instrument import InstrumentSpec
+    from qtros.domain.market import BarData
 
 ZERO = Decimal("0")
 
@@ -104,8 +107,12 @@ def _run_buy_and_hold(
     exit_bar = make_bar(index=10, price=str(EXIT_REFERENCE))
     exit_result = broker.submit(
         make_order(
-            Direction.SHORT, QUANTITY, trade_id,
-            is_exit=True, exit_reason=ExitReason.SIGNAL_EXIT, index=10,
+            Direction.SHORT,
+            QUANTITY,
+            trade_id,
+            is_exit=True,
+            exit_reason=ExitReason.SIGNAL_EXIT,
+            index=10,
         ),
         exit_bar,
         instrument,
@@ -173,9 +180,7 @@ class TestBuyAndHoldPnl:
         """
         _, trade, _, _ = buy_and_hold
         assert trade.gross_pnl == EXPECTED_REFERENCE_PNL
-        assert trade.gross_pnl == (EXIT_REFERENCE - ENTRY_REFERENCE) * QUANTITY * Decimal(
-            "100000"
-        )
+        assert trade.gross_pnl == (EXIT_REFERENCE - ENTRY_REFERENCE) * QUANTITY * Decimal("100000")
 
     def test_net_pnl_equals_gross_minus_all_itemised_friction(
         self, buy_and_hold: tuple[Portfolio, Trade, ExecutionFill, ExecutionFill]
@@ -235,9 +240,7 @@ class TestFrictionAttribution:
         """No unattributed residual is permitted to hide in the total."""
         _, _, entry, exit_fill = buy_and_hold
         for fill in (entry, exit_fill):
-            assert (
-                fill.spread_cost + fill.slippage_cost + fill.commission == fill.total_costs
-            )
+            assert fill.spread_cost + fill.slippage_cost + fill.commission == fill.total_costs
             assert fill.implicit_costs + fill.cash_costs == fill.total_costs
 
     def test_implicit_costs_equal_the_cash_value_of_the_price_degradation(
@@ -251,9 +254,7 @@ class TestFrictionAttribution:
         """
         _, _, entry, exit_fill = buy_and_hold
         for fill in (entry, exit_fill):
-            degradation = (fill.fill_price - fill.reference_price) * Decimal(
-                fill.direction.sign
-            )
+            degradation = (fill.fill_price - fill.reference_price) * Decimal(fill.direction.sign)
             assert fill.implicit_costs == degradation * fill.quantity * Decimal("100000")
 
     def test_only_commission_moves_cash_directly(
@@ -328,7 +329,6 @@ class TestFrictionlessBaseline:
             index: int = 0,
         ) -> ApprovedOrder:
             from qtros.domain.orders import RISK_APPROVAL, TradeIntent
-
             from tests.conftest import BAR_INTERVAL, EPOCH
 
             intent = TradeIntent(
@@ -350,7 +350,11 @@ class TestFrictionlessBaseline:
             )
 
         _, clean_trade, _, _ = _run_buy_and_hold(
-            frictionless_instrument, frictionless, make_bar, clean_order,
-            clean_ids, clean_portfolio,
+            frictionless_instrument,
+            frictionless,
+            make_bar,
+            clean_order,
+            clean_ids,
+            clean_portfolio,
         )
         assert clean_trade.net_pnl - friction_trade.net_pnl == friction_trade.total_costs

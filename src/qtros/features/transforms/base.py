@@ -47,10 +47,8 @@ not merely expected to behave:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Final, TypeVar
+from typing import TYPE_CHECKING, Final, TypeVar
 
 import polars as pl
 import structlog
@@ -64,6 +62,9 @@ from qtros.domain.feature_contracts import (
     SealedFeatureSet,
     WarmupRequirement,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Mapping, Sequence
 
 _LOGGER: Final = structlog.get_logger(__name__)
 
@@ -144,8 +145,7 @@ def seal_features(transforms: Sequence[IFeatureTransform]) -> SealedFeatureSet:
         for column in spec.output_columns:
             if column in records:
                 raise ConfigurationError(
-                    "Two transforms claim the same output column; provenance would be "
-                    "ambiguous",
+                    "Two transforms claim the same output column; provenance would be ambiguous",
                     column=column,
                     first=records[column].transform_name,
                     second=spec.name,
@@ -267,7 +267,7 @@ class TransformBase(ABC):
 
         try:
             produced: pl.LazyFrame = self._build(frame)
-        except Exception as exc:  # noqa: BLE001 - polars raises several unrelated types
+        except Exception as exc:
             raise SchemaContractError(
                 "Transform failed while building its expression",
                 transform=spec.name,
@@ -313,7 +313,7 @@ class TransformBase(ABC):
             second: pl.DataFrame = self.apply(probe.lazy()).collect()
         except SchemaContractError:
             raise
-        except Exception as exc:  # noqa: BLE001 - polars raises several unrelated types
+        except Exception as exc:
             raise SchemaContractError(
                 "Transform failed its conformance check; it most likely reads a column it "
                 "does not declare in depends_on",
@@ -333,9 +333,7 @@ class TransformBase(ABC):
             )
 
         for column in spec.output_columns:
-            if not first.get_column(column).equals(
-                second.get_column(column), null_equal=True
-            ):
+            if not first.get_column(column).equals(second.get_column(column), null_equal=True):
                 raise SchemaContractError(
                     "Transform is not deterministic; two identical builds disagreed. A "
                     "transform must not read a clock, a random source, or mutable state",
@@ -383,9 +381,7 @@ class TransformBase(ABC):
                 dropped=list(dropped),
             )
 
-        mutated: tuple[str, ...] = tuple(
-            n for n in before_names if after[n] != before[n]
-        )
+        mutated: tuple[str, ...] = tuple(n for n in before_names if after[n] != before[n])
         if mutated:
             raise SchemaContractError(
                 "Transform changed the dtype of an existing column",
@@ -452,7 +448,8 @@ class TransformBase(ABC):
                 data[column] = [1.0 + index * 0.25 for index in range(rows)]
 
         frame: pl.DataFrame = pl.DataFrame(data)
-        if "ts_utc" in frame.columns and frame.schema["ts_utc"].time_zone is None:
+        ts_dtype = frame.schema.get("ts_utc")
+        if isinstance(ts_dtype, pl.Datetime) and ts_dtype.time_zone is None:
             frame = frame.with_columns(pl.col("ts_utc").dt.replace_time_zone("UTC"))
         return frame
 

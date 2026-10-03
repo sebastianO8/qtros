@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import replace
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -21,8 +21,6 @@ from qtros.domain.enums import (
 from qtros.domain.errors import ConfigurationError
 from qtros.domain.execution import EquitySnapshot, PositionState
 from qtros.domain.identifiers import SequentialIdFactory, TradeId
-from qtros.domain.instrument import InstrumentSpec
-from qtros.domain.market import BarData
 from qtros.domain.orders import ApprovalError, ApprovedOrder, TradeIntent
 from qtros.domain.signals import PortfolioView
 from qtros.risk import (
@@ -32,8 +30,13 @@ from qtros.risk import (
     RiskEngine,
     notional_value,
 )
-
 from tests.conftest import BAR_INTERVAL, EPOCH, INITIAL_CASH
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from qtros.domain.instrument import InstrumentSpec
+    from qtros.domain.market import BarData
 
 ZERO = Decimal("0")
 
@@ -73,7 +76,9 @@ def position(
 ) -> PositionState:
     return PositionState(
         trade_id=TradeId(trade_id),
-        instrument_id=__import__("qtros.domain.identifiers", fromlist=["InstrumentId"]).InstrumentId("AUDJPY"),
+        instrument_id=__import__(
+            "qtros.domain.identifiers", fromlist=["InstrumentId"]
+        ).InstrumentId("AUDJPY"),
         direction=direction,
         quantity=Decimal(quantity),
         avg_entry_price=Decimal(entry),
@@ -102,7 +107,11 @@ def entry_intent(
 
 
 def exit_intent(
-    ids: SequentialIdFactory, instrument: InstrumentSpec, direction: Direction, *, requested: str | None = None
+    ids: SequentialIdFactory,
+    instrument: InstrumentSpec,
+    direction: Direction,
+    *,
+    requested: str | None = None,
 ) -> TradeIntent:
     return TradeIntent(
         intent_id=ids.next_intent_id(),
@@ -138,23 +147,37 @@ def engine(instrument: InstrumentSpec, ids: SequentialIdFactory) -> RiskEngine:
 
 class TestApprovalGate:
     def test_only_the_risk_engine_mints_approved_orders(
-        self, engine: RiskEngine, instrument: InstrumentSpec, ids: SequentialIdFactory, make_bar: Callable[..., BarData]
+        self,
+        engine: RiskEngine,
+        instrument: InstrumentSpec,
+        ids: SequentialIdFactory,
+        make_bar: Callable[..., BarData],
     ) -> None:
         intent = entry_intent(ids, instrument)
         result = engine.approve(intent, view=flat_view(), bar=make_bar(), trade_id=TradeId("t-1"))
         assert result.approved and result.order is not None
         assert result.order.trade_id == TradeId("t-1")
 
-    def test_forged_approval_is_refused_by_the_type(self, instrument: InstrumentSpec, ids: SequentialIdFactory) -> None:
+    def test_forged_approval_is_refused_by_the_type(
+        self, instrument: InstrumentSpec, ids: SequentialIdFactory
+    ) -> None:
         intent = entry_intent(ids, instrument)
         with pytest.raises(ApprovalError):
             ApprovedOrder(
-                order_id="o", intent=intent, quantity=Decimal("1"), approved_at_utc=EPOCH,
-                trade_id=TradeId("t"), approval=None,
+                order_id="o",
+                intent=intent,
+                quantity=Decimal("1"),
+                approved_at_utc=EPOCH,
+                trade_id=TradeId("t"),
+                approval=None,
             )
 
     def test_rejections_are_retained_as_data(
-        self, engine: RiskEngine, instrument: InstrumentSpec, ids: SequentialIdFactory, make_bar: Callable[..., BarData]
+        self,
+        engine: RiskEngine,
+        instrument: InstrumentSpec,
+        ids: SequentialIdFactory,
+        make_bar: Callable[..., BarData],
     ) -> None:
         intent = entry_intent(ids, instrument, stop=None)
         result = engine.approve(intent, view=flat_view(), bar=make_bar(), trade_id=TradeId("t-1"))
@@ -170,37 +193,61 @@ class TestApprovalGate:
 
 class TestSizing:
     def test_fixed_fractional_sizing_is_hand_checkable(
-        self, engine: RiskEngine, instrument: InstrumentSpec, ids: SequentialIdFactory, make_bar: Callable[..., BarData]
+        self,
+        engine: RiskEngine,
+        instrument: InstrumentSpec,
+        ids: SequentialIdFactory,
+        make_bar: Callable[..., BarData],
     ) -> None:
         # 1% of 1,000,000 = 10,000 at risk. Stop 1.000 below a 95.000 close on a 100,000
         # contract = 100,000 per lot at the stop. 10,000 / 100,000 = 0.10 lots.
         intent = entry_intent(ids, instrument, stop="94.000")
-        result = engine.approve(intent, view=flat_view(), bar=make_bar(price="95.000"), trade_id=TradeId("t"))
+        result = engine.approve(
+            intent, view=flat_view(), bar=make_bar(price="95.000"), trade_id=TradeId("t")
+        )
         assert result.order is not None
         assert result.order.quantity == Decimal("0.10")
 
     def test_quantity_rounds_down_to_the_lot_grid(
-        self, engine: RiskEngine, instrument: InstrumentSpec, ids: SequentialIdFactory, make_bar: Callable[..., BarData]
+        self,
+        engine: RiskEngine,
+        instrument: InstrumentSpec,
+        ids: SequentialIdFactory,
+        make_bar: Callable[..., BarData],
     ) -> None:
         # Stop 0.300 away: 10,000 / 30,000 = 0.3333… → 0.33, never 0.34.
         intent = entry_intent(ids, instrument, stop="94.700")
-        result = engine.approve(intent, view=flat_view(), bar=make_bar(price="95.000"), trade_id=TradeId("t"))
+        result = engine.approve(
+            intent, view=flat_view(), bar=make_bar(price="95.000"), trade_id=TradeId("t")
+        )
         assert result.order is not None
         assert result.order.quantity == Decimal("0.33")
 
     def test_stop_on_the_wrong_side_is_rejected(
-        self, engine: RiskEngine, instrument: InstrumentSpec, ids: SequentialIdFactory, make_bar: Callable[..., BarData]
+        self,
+        engine: RiskEngine,
+        instrument: InstrumentSpec,
+        ids: SequentialIdFactory,
+        make_bar: Callable[..., BarData],
     ) -> None:
         intent = entry_intent(ids, instrument, Direction.LONG, stop="96.000")
-        result = engine.approve(intent, view=flat_view(), bar=make_bar(price="95.000"), trade_id=TradeId("t"))
+        result = engine.approve(
+            intent, view=flat_view(), bar=make_bar(price="95.000"), trade_id=TradeId("t")
+        )
         assert result.rejection is not None
         assert result.rejection.code is OrderRejectionCode.NO_STOP_FOR_SIZING
 
     def test_short_sizing_uses_a_stop_above(
-        self, engine: RiskEngine, instrument: InstrumentSpec, ids: SequentialIdFactory, make_bar: Callable[..., BarData]
+        self,
+        engine: RiskEngine,
+        instrument: InstrumentSpec,
+        ids: SequentialIdFactory,
+        make_bar: Callable[..., BarData],
     ) -> None:
         intent = entry_intent(ids, instrument, Direction.SHORT, stop="96.000")
-        result = engine.approve(intent, view=flat_view(), bar=make_bar(price="95.000"), trade_id=TradeId("t"))
+        result = engine.approve(
+            intent, view=flat_view(), bar=make_bar(price="95.000"), trade_id=TradeId("t")
+        )
         assert result.order is not None and result.order.quantity == Decimal("0.10")
 
     def test_sub_minimum_lot_is_rejected_by_default(
@@ -208,7 +255,9 @@ class TestSizing:
     ) -> None:
         small = RiskEngine(limits(), instrument, ids, initial_equity=Decimal("500"))
         intent = entry_intent(ids, instrument, stop="94.000")
-        result = small.approve(intent, view=flat_view(Decimal("500")), bar=make_bar(), trade_id=TradeId("t"))
+        result = small.approve(
+            intent, view=flat_view(Decimal("500")), bar=make_bar(), trade_id=TradeId("t")
+        )
         assert result.rejection is not None
         assert result.rejection.code is OrderRejectionCode.SIZED_TO_ZERO
 
@@ -216,18 +265,27 @@ class TestSizing:
         self, instrument: InstrumentSpec, ids: SequentialIdFactory, make_bar: Callable[..., BarData]
     ) -> None:
         small = RiskEngine(
-            limits(), instrument, ids, initial_equity=Decimal("500"),
+            limits(),
+            instrument,
+            ids,
+            initial_equity=Decimal("500"),
             sub_min_lot_policy=SubMinLotPolicy.ROUND_UP,
             rules=(),  # isolate the policy from the notional cap
         )
         intent = entry_intent(ids, instrument, stop="94.000")
-        result = small.approve(intent, view=flat_view(Decimal("500")), bar=make_bar(), trade_id=TradeId("t"))
+        result = small.approve(
+            intent, view=flat_view(Decimal("500")), bar=make_bar(), trade_id=TradeId("t")
+        )
         assert result.order is not None
         assert result.order.quantity == instrument.min_lot
         assert result.order.resize_reason is not None
 
     def test_explicit_quantity_bypasses_the_risk_calculation_but_not_the_grid(
-        self, engine: RiskEngine, instrument: InstrumentSpec, ids: SequentialIdFactory, make_bar: Callable[..., BarData]
+        self,
+        engine: RiskEngine,
+        instrument: InstrumentSpec,
+        ids: SequentialIdFactory,
+        make_bar: Callable[..., BarData],
     ) -> None:
         intent = entry_intent(ids, instrument, stop=None, requested="0.237")
         result = engine.approve(intent, view=flat_view(), bar=make_bar(), trade_id=TradeId("t"))
@@ -256,7 +314,7 @@ class TestExposureRules:
         assert result.rejection.code is OrderRejectionCode.EXCEEDS_MAX_LOT
 
     def test_notional_cap_counts_the_open_position(self, instrument: InstrumentSpec) -> None:
-        rule = MaxNotionalExposureRule(Decimal("1"))  # 1× equity
+        rule = MaxNotionalExposureRule(Decimal("1"))  # 1x equity
         held = position(Direction.LONG, "0.08", "95.000")  # 760,000 notional
         verdict = rule.evaluate(
             intent=None,  # type: ignore[arg-type]
@@ -281,14 +339,18 @@ class TestExposureRules:
     def test_notional_cap_through_the_engine(
         self, instrument: InstrumentSpec, ids: SequentialIdFactory, make_bar: Callable[..., BarData]
     ) -> None:
-        engine = RiskEngine(limits(max_notional_pct="50"), instrument, ids, initial_equity=INITIAL_CASH)
+        engine = RiskEngine(
+            limits(max_notional_pct="50"), instrument, ids, initial_equity=INITIAL_CASH
+        )
         intent = entry_intent(ids, instrument, stop=None, requested="0.60")  # 5,700,000 > 500,000
         result = engine.approve(intent, view=flat_view(), bar=make_bar(), trade_id=TradeId("t"))
         assert result.rejection is not None
         assert result.rejection.code is OrderRejectionCode.EXCEEDS_NOTIONAL_CAP
 
     def test_notional_value_is_quantized_money(self, instrument: InstrumentSpec) -> None:
-        assert notional_value(Decimal("0.01"), Decimal("95.0005"), instrument) == Decimal("95000.50")
+        assert notional_value(Decimal("0.01"), Decimal("95.0005"), instrument) == Decimal(
+            "95000.50"
+        )
 
     def test_rules_reject_non_positive_caps(self) -> None:
         with pytest.raises(ConfigurationError):
@@ -303,10 +365,14 @@ class TestExposureRules:
 
 
 class TestDrawdownHalt:
-    def test_gate_basis_must_be_mark_to_market(self, instrument: InstrumentSpec, ids: SequentialIdFactory) -> None:
+    def test_gate_basis_must_be_mark_to_market(
+        self, instrument: InstrumentSpec, ids: SequentialIdFactory
+    ) -> None:
         with pytest.raises(ConfigurationError, match="G-2"):
             RiskEngine(
-                limits(max_drawdown_basis=DrawdownBasis.CLOSED_EQUITY), instrument, ids,
+                limits(max_drawdown_basis=DrawdownBasis.CLOSED_EQUITY),
+                instrument,
+                ids,
                 initial_equity=INITIAL_CASH,
             )
 
@@ -320,7 +386,9 @@ class TestDrawdownHalt:
         bar = make_bar(index=1, price="95.000", high="95.600", low="93.900", close="95.500")
         event = engine.on_bar_close(
             snapshot=snapshot(INITIAL_CASH, INITIAL_CASH + Decimal("50000"), 1),
-            bar=bar, position=held, bar_index=1,
+            bar=bar,
+            position=held,
+            bar_index=1,
         )
         assert event is not None and event.kind is RiskEventKind.DRAWDOWN_HALT
         assert event.extreme_equity == INITIAL_CASH - Decimal("110000")
@@ -333,79 +401,163 @@ class TestDrawdownHalt:
         bar = make_bar(index=1, price="95.000", high="95.100", low="94.100", close="94.200")  # -9%
         event = engine.on_bar_close(
             snapshot=snapshot(INITIAL_CASH, INITIAL_CASH - Decimal("80000"), 1),
-            bar=bar, position=held, bar_index=1,
+            bar=bar,
+            position=held,
+            bar_index=1,
         )
         assert event is None and not engine.is_halted
 
-    def test_short_position_uses_the_bar_high(self, engine: RiskEngine, make_bar: Callable[..., BarData]) -> None:
+    def test_short_position_uses_the_bar_high(
+        self, engine: RiskEngine, make_bar: Callable[..., BarData]
+    ) -> None:
         held = position(Direction.SHORT, "1.00", "95.000")
         bar = make_bar(index=1, price="95.000", high="96.100", low="94.900", close="95.000")
         event = engine.on_bar_close(
-            snapshot=snapshot(INITIAL_CASH, INITIAL_CASH, 1), bar=bar, position=held, bar_index=1,
+            snapshot=snapshot(INITIAL_CASH, INITIAL_CASH, 1),
+            bar=bar,
+            position=held,
+            bar_index=1,
         )
         assert event is not None and event.kind is RiskEventKind.DRAWDOWN_HALT
 
-    def test_peak_is_evaluated_before_it_advances(self, engine: RiskEngine, make_bar: Callable[..., BarData]) -> None:
+    def test_peak_is_evaluated_before_it_advances(
+        self, engine: RiskEngine, make_bar: Callable[..., BarData]
+    ) -> None:
         # Bar closes at a new high but its low breached the limit from the prior peak.
         held = position(Direction.LONG, "1.00", "95.000")
         bar = make_bar(index=1, price="95.000", high="97.000", low="93.900", close="97.000")
         event = engine.on_bar_close(
             snapshot=snapshot(INITIAL_CASH, INITIAL_CASH + Decimal("200000"), 1),
-            bar=bar, position=held, bar_index=1,
+            bar=bar,
+            position=held,
+            bar_index=1,
         )
         assert event is not None and event.peak_equity == INITIAL_CASH
         assert engine.peak_equity == INITIAL_CASH + Decimal("200000")
 
     def test_halt_blocks_entries_but_not_exits(
-        self, engine: RiskEngine, instrument: InstrumentSpec, ids: SequentialIdFactory, make_bar: Callable[..., BarData]
+        self,
+        engine: RiskEngine,
+        instrument: InstrumentSpec,
+        ids: SequentialIdFactory,
+        make_bar: Callable[..., BarData],
     ) -> None:
         held = position(Direction.LONG, "1.00", "95.000")
         bar = make_bar(index=1, price="95.000", high="95.000", low="93.000", close="94.000")
-        engine.on_bar_close(snapshot=snapshot(INITIAL_CASH, INITIAL_CASH - Decimal("100000"), 1), bar=bar, position=held, bar_index=1)
+        engine.on_bar_close(
+            snapshot=snapshot(INITIAL_CASH, INITIAL_CASH - Decimal("100000"), 1),
+            bar=bar,
+            position=held,
+            bar_index=1,
+        )
         assert engine.is_halted
 
-        entry = engine.approve(entry_intent(ids, instrument), view=open_view(held), bar=bar, trade_id=TradeId("t-1"))
-        assert entry.rejection is not None and entry.rejection.code is OrderRejectionCode.RISK_HALTED
+        entry = engine.approve(
+            entry_intent(ids, instrument), view=open_view(held), bar=bar, trade_id=TradeId("t-1")
+        )
+        assert (
+            entry.rejection is not None and entry.rejection.code is OrderRejectionCode.RISK_HALTED
+        )
 
-        close = engine.approve(exit_intent(ids, instrument, Direction.SHORT), view=open_view(held), bar=bar, trade_id=TradeId("t-1"))
+        close = engine.approve(
+            exit_intent(ids, instrument, Direction.SHORT),
+            view=open_view(held),
+            bar=bar,
+            trade_id=TradeId("t-1"),
+        )
         assert close.order is not None and close.order.quantity == Decimal("1.00")
         assert close.order.is_exit
 
-    def test_run_halt_does_not_release(self, engine: RiskEngine, make_bar: Callable[..., BarData]) -> None:
+    def test_run_halt_does_not_release(
+        self, engine: RiskEngine, make_bar: Callable[..., BarData]
+    ) -> None:
         held = position(Direction.LONG, "1.00", "95.000")
         bar = make_bar(index=1, price="95.000", high="95.000", low="93.000", close="94.000")
-        engine.on_bar_close(snapshot=snapshot(INITIAL_CASH, INITIAL_CASH - Decimal("100000"), 1), bar=bar, position=held, bar_index=1, session_index=0)
-        engine.on_bar_close(snapshot=snapshot(INITIAL_CASH, INITIAL_CASH, 2), bar=make_bar(index=2), position=None, bar_index=2, session_index=1)
+        engine.on_bar_close(
+            snapshot=snapshot(INITIAL_CASH, INITIAL_CASH - Decimal("100000"), 1),
+            bar=bar,
+            position=held,
+            bar_index=1,
+            session_index=0,
+        )
+        engine.on_bar_close(
+            snapshot=snapshot(INITIAL_CASH, INITIAL_CASH, 2),
+            bar=make_bar(index=2),
+            position=None,
+            bar_index=2,
+            session_index=1,
+        )
         assert engine.is_halted
 
     def test_session_halt_releases_at_the_next_session(
         self, instrument: InstrumentSpec, ids: SequentialIdFactory, make_bar: Callable[..., BarData]
     ) -> None:
-        engine = RiskEngine(limits(on_limit_breach=BreachAction.HALT_SESSION), instrument, ids, initial_equity=INITIAL_CASH)
+        engine = RiskEngine(
+            limits(on_limit_breach=BreachAction.HALT_SESSION),
+            instrument,
+            ids,
+            initial_equity=INITIAL_CASH,
+        )
         held = position(Direction.LONG, "1.00", "95.000")
         bar = make_bar(index=1, price="95.000", high="95.000", low="93.000", close="94.000")
-        engine.on_bar_close(snapshot=snapshot(INITIAL_CASH, INITIAL_CASH - Decimal("100000"), 1), bar=bar, position=held, bar_index=1, session_index=0)
+        engine.on_bar_close(
+            snapshot=snapshot(INITIAL_CASH, INITIAL_CASH - Decimal("100000"), 1),
+            bar=bar,
+            position=held,
+            bar_index=1,
+            session_index=0,
+        )
         assert engine.is_halted
-        same = engine.on_bar_close(snapshot=snapshot(INITIAL_CASH, INITIAL_CASH, 2), bar=make_bar(index=2), position=None, bar_index=2, session_index=0)
+        same = engine.on_bar_close(
+            snapshot=snapshot(INITIAL_CASH, INITIAL_CASH, 2),
+            bar=make_bar(index=2),
+            position=None,
+            bar_index=2,
+            session_index=0,
+        )
         assert same is None and engine.is_halted
-        released = engine.on_bar_close(snapshot=snapshot(INITIAL_CASH, INITIAL_CASH, 3), bar=make_bar(index=3), position=None, bar_index=3, session_index=1)
+        released = engine.on_bar_close(
+            snapshot=snapshot(INITIAL_CASH, INITIAL_CASH, 3),
+            bar=make_bar(index=3),
+            position=None,
+            bar_index=3,
+            session_index=1,
+        )
         assert released is not None and released.kind is RiskEventKind.HALT_RELEASED
         assert not engine.is_halted
 
     def test_exit_larger_than_the_position_is_clipped(
-        self, engine: RiskEngine, instrument: InstrumentSpec, ids: SequentialIdFactory, make_bar: Callable[..., BarData]
+        self,
+        engine: RiskEngine,
+        instrument: InstrumentSpec,
+        ids: SequentialIdFactory,
+        make_bar: Callable[..., BarData],
     ) -> None:
         held = position(Direction.LONG, "0.50", "95.000")
         result = engine.approve(
             exit_intent(ids, instrument, Direction.SHORT, requested="0.80"),
-            view=open_view(held), bar=make_bar(), trade_id=TradeId("t-1"),
+            view=open_view(held),
+            bar=make_bar(),
+            trade_id=TradeId("t-1"),
         )
         assert result.order is not None
         assert result.order.quantity == Decimal("0.50")
         assert result.order.resize_reason is not None
 
     def test_exit_while_flat_is_rejected(
-        self, engine: RiskEngine, instrument: InstrumentSpec, ids: SequentialIdFactory, make_bar: Callable[..., BarData]
+        self,
+        engine: RiskEngine,
+        instrument: InstrumentSpec,
+        ids: SequentialIdFactory,
+        make_bar: Callable[..., BarData],
     ) -> None:
-        result = engine.approve(exit_intent(ids, instrument, Direction.SHORT), view=flat_view(), bar=make_bar(), trade_id=TradeId("t"))
-        assert result.rejection is not None and result.rejection.code is OrderRejectionCode.NO_OPEN_POSITION
+        result = engine.approve(
+            exit_intent(ids, instrument, Direction.SHORT),
+            view=flat_view(),
+            bar=make_bar(),
+            trade_id=TradeId("t"),
+        )
+        assert (
+            result.rejection is not None
+            and result.rejection.code is OrderRejectionCode.NO_OPEN_POSITION
+        )

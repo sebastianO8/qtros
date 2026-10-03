@@ -285,7 +285,9 @@ class OrderRejectionCode(StrEnum):
     NON_POSITIVE_QUANTITY = "NON_POSITIVE_QUANTITY"
     NO_EXECUTION_BAR = "NO_EXECUTION_BAR"
     INSTRUMENT_MISMATCH = "INSTRUMENT_MISMATCH"
-    MARKET_CLOSED = "MARKET_CLOSED"    # ARCH-008 additions — Layer 3 (risk) rejection reasons. Append-only.
+    MARKET_CLOSED = (
+        "MARKET_CLOSED"  # ARCH-008 additions — Layer 3 (risk) rejection reasons. Append-only.
+    )
     RISK_HALTED = "RISK_HALTED"
     """Entry refused because the drawdown halt is active (G-2). Exits are never refused
     for this reason."""

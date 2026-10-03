@@ -5,26 +5,29 @@ top *N* trades? The quarterly form is a **gate**; the lifetime form is a **kill 
 that requires a written ``mechanism_note`` before the strategy may pass.
 
 Trades are the unit (C-4), so splitting one large winner across several partial exits
-cannot reduce measured concentration — the exits are one trade.
+cannot reduce measured concentration - the exits are one trade.
 
-Definition (ASS-010): the denominator is **gross profit** — the sum of winning trades' net
-PnL — and the numerator is the sum of the *N* largest winners. A period with no gross
+Definition (ASS-010): the denominator is **gross profit** - the sum of winning trades' net
+PnL - and the numerator is the sum of the *N* largest winners. A period with no gross
 profit is not evaluable rather than trivially passing.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date
-from decimal import Decimal
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from qtros.analytics.metrics import HUNDRED, ZERO, quantize_metric
-from qtros.configuration.models.reporting import ConcentrationConfig
 from qtros.domain.enums import PeriodAttribution
-from qtros.domain.execution import Trade
-from qtros.domain.timekeeping import SessionCalendar
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from datetime import date
+    from decimal import Decimal
+
+    from qtros.configuration.models.reporting import ConcentrationConfig
+    from qtros.domain.execution import Trade
+    from qtros.domain.timekeeping import SessionCalendar
 
 LIFETIME: Final[str] = "lifetime"
 
@@ -34,7 +37,9 @@ def quarter_key(day: date) -> str:
     return f"{day.year}Q{(day.month - 1) // 3 + 1}"
 
 
-def attribution_day(trade: Trade, attribution: PeriodAttribution, calendar: SessionCalendar) -> date:
+def attribution_day(
+    trade: Trade, attribution: PeriodAttribution, calendar: SessionCalendar
+) -> date:
     """Return the trading day a trade is attributed to.
 
     Args:
@@ -60,7 +65,7 @@ class PeriodConcentration:
         winner_count: Winning trades in the period.
         gross_profit: Sum of winners' net PnL.
         top_n_profit: Sum of the top *N* winners' net PnL.
-        top_n_share_pct: ``top_n_profit / gross_profit × 100``, or ``None``.
+        top_n_share_pct: ``top_n_profit / gross_profit x 100``, or ``None``.
         threshold_pct: The threshold applied.
         breached: Whether the share exceeded the threshold; ``None`` if not evaluable.
         top_trade_ids: The trades that make up the numerator.
@@ -120,7 +125,9 @@ def _evaluate(
     inclusive: bool,
 ) -> PeriodConcentration:
     """Evaluate one period."""
-    winners = sorted((t for t in trades if t.net_pnl > ZERO), key=lambda t: (-t.net_pnl, str(t.trade_id)))
+    winners = sorted(
+        (t for t in trades if t.net_pnl > ZERO), key=lambda t: (-t.net_pnl, str(t.trade_id))
+    )
     gross = sum((t.net_pnl for t in winners), ZERO)
     top = winners[:top_n]
     top_profit = sum((t.net_pnl for t in top), ZERO)
@@ -166,7 +173,8 @@ def concentration(
 
     quarterly = tuple(
         _evaluate(
-            key, by_quarter[key],
+            key,
+            by_quarter[key],
             top_n=config.top_n_trades,
             threshold_pct=config.quarterly_threshold_pct,
             inclusive=config.boundary_is_inclusive,
@@ -174,7 +182,8 @@ def concentration(
         for key in sorted(by_quarter)
     )
     lifetime = _evaluate(
-        LIFETIME, closed,
+        LIFETIME,
+        closed,
         top_n=config.top_n_trades,
         threshold_pct=config.lifetime_threshold_pct,
         inclusive=config.boundary_is_inclusive,

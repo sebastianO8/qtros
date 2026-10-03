@@ -1,18 +1,15 @@
-"""HTML report and derived registry tests (ARCH-002 §6.1–§6.2)."""
+"""HTML report and derived registry tests (ARCH-002 §6.1-§6.2)."""
 
 from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
-from qtros.analytics import analyze
 from qtros.analytics.render import equity_curve_svg, render_report
-from qtros.configuration import ConfigLoader
 from qtros.domain.errors import ConfigurationError
-from qtros.engine.builder import run_from_config
 from qtros.persistence import RunWriter
 from qtros.persistence.registry import (
     export_registry,
@@ -20,26 +17,25 @@ from qtros.persistence.registry import (
     render_registry_markdown,
     scan_results,
 )
+from tests.test_builder import CONFIG_ROOT, ScoredRun, scored_run
 
-from tests.test_builder import CONFIG_ROOT, synthetic_bars
+if TYPE_CHECKING:
+    from pathlib import Path
 
 RUN_AT = datetime(2026, 10, 3, 12, 0, tzinfo=UTC)
 
 
 @pytest.fixture(scope="module")
-def scored():  # noqa: ANN201
-    import qtros.alpha.strategies.vwap_pullback  # noqa: F401
-
-    resolved = ConfigLoader(CONFIG_ROOT).load_backtest("phase1_mvp")
-    components, result = run_from_config(resolved, synthetic_bars())
-    report = analyze(result, resolved, components.calendar, scored_at_utc=RUN_AT)
-    return resolved, components, result, report
+def scored() -> ScoredRun:
+    return scored_run(RUN_AT)
 
 
 class TestRender:
-    def test_report_is_self_contained_html(self, scored) -> None:  # noqa: ANN001
-        _, components, result, report = scored
-        html = render_report(report, result, run_id="r1", hashes={"run_hash": components.hashes.run_hash})
+    def test_report_is_self_contained_html(self, scored: ScoredRun) -> None:
+        components, result, report = scored.components, scored.result, scored.report
+        html = render_report(
+            report, result, run_id="r1", hashes={"run_hash": components.hashes.run_hash}
+        )
         assert html.startswith("<!DOCTYPE html>")
         assert "<script" not in html and "http://" not in html and "https://" not in html
         assert "<svg" in html and "constitution_v3_2" in html
@@ -47,41 +43,49 @@ class TestRender:
         for check in report.gates.checks:
             assert check.name in html
 
-    def test_untrusted_and_watermarked_runs_are_bannered(self, scored) -> None:  # noqa: ANN001
+    def test_untrusted_and_watermarked_runs_are_bannered(self, scored: ScoredRun) -> None:
         from dataclasses import replace
 
-        _, _, result, report = scored
-        marked = replace(report, trusted=False, gates=replace(report.gates, watermarks=("SAME_BAR_CLOSE execution timing",)))
+        result, report = scored.result, scored.report
+        marked = replace(
+            report,
+            trusted=False,
+            gates=replace(report.gates, watermarks=("SAME_BAR_CLOSE execution timing",)),
+        )
         html = render_report(marked, result, run_id="r1", hashes={})
         assert "UNTRUSTED" in html and "WATERMARK — SAME_BAR_CLOSE" in html
 
-    def test_values_are_escaped(self, scored) -> None:  # noqa: ANN001
-        _, _, result, report = scored
+    def test_values_are_escaped(self, scored: ScoredRun) -> None:
+        result, report = scored.result, scored.report
         html = render_report(report, result, run_id="<img src=x>", hashes={})
         assert "<img src=x>" not in html and "&lt;img" in html
 
-    def test_equity_svg_handles_empty_and_flat_curves(self, scored) -> None:  # noqa: ANN001
+    def test_equity_svg_handles_empty_and_flat_curves(self, scored: ScoredRun) -> None:
         assert equity_curve_svg([]).startswith("<svg")
-        _, _, result, _ = scored
+        result = scored.result
         svg = equity_curve_svg(result.equity_curve[:1])
         assert "polyline" in svg
 
-    def test_rendering_is_deterministic(self, scored) -> None:  # noqa: ANN001
-        _, _, result, report = scored
-        assert render_report(report, result, run_id="r", hashes={}) == render_report(report, result, run_id="r", hashes={})
+    def test_rendering_is_deterministic(self, scored: ScoredRun) -> None:
+        result, report = scored.result, scored.report
+        assert render_report(report, result, run_id="r", hashes={}) == render_report(
+            report, result, run_id="r", hashes={}
+        )
 
 
 class TestRegistry:
     @pytest.fixture
-    def results_root(self, scored, tmp_path: Path) -> Path:  # noqa: ANN001
-        _, components, result, report = scored
+    def results_root(self, scored: ScoredRun, tmp_path: Path) -> Path:
+        components, result, report = scored.components, scored.result, scored.report
         writer = RunWriter(tmp_path / "results")
         writer.write(components, result, report, run_at_utc=RUN_AT, lookup_git=False)
         (tmp_path / "results" / "incomplete-run").mkdir()  # skipped, not fatal
         return tmp_path / "results"
 
-    def test_scan_reads_manifest_and_performance(self, results_root: Path, scored) -> None:  # noqa: ANN001
-        _, components, result, report = scored
+    def test_scan_reads_manifest_and_performance(
+        self, results_root: Path, scored: ScoredRun
+    ) -> None:
+        components, result, report = scored.components, scored.result, scored.report
         entries = scan_results(results_root)
         assert len(entries) == 1
         entry = entries[0]
@@ -95,7 +99,8 @@ class TestRegistry:
         entry = scan_results(results_root)[0]
         decisions = tmp_path / "decisions.yaml"
         decisions.write_text(
-            f"decisions:\n  - run_id: {entry.run_id}\n    decision: hold\n    mechanism_note: \"needs more data\"\n"
+            f"decisions:\n  - run_id: {entry.run_id}\n    decision: hold\n"
+            '    mechanism_note: "needs more data"\n'
         )
         joined = scan_results(results_root, load_decisions(decisions))[0]
         assert joined.decision == "HOLD" and joined.mechanism_note == "needs more data"

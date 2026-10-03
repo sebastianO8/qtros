@@ -61,23 +61,48 @@ REQUIRED: dict[str, tuple[str, ...]] = {
     "qtros/execution/friction.py": ("StandardFrictionModel", "FrictionCharges"),
     "qtros/execution/broker.py": ("SimulatedBroker._derive_implicit_costs",),
     # ARCH-008 — configuration, risk, alpha, run loop
-    "qtros/configuration/models/base.py": ("ProvenanceClass", "StrictDecimal", "QtrosConfig", "provenance"),
+    "qtros/configuration/models/base.py": (
+        "ProvenanceClass",
+        "StrictDecimal",
+        "QtrosConfig",
+        "provenance",
+    ),
     "qtros/configuration/models/strategy.py": ("SignificancePolicyConfig", "StrategyConfig"),
     "qtros/configuration/models/risk.py": ("RiskLimitsConfig",),
-    "qtros/configuration/hashing.py": ("ConfigHashes", "canonical_json", "partition", "compute_hashes"),
+    "qtros/configuration/hashing.py": (
+        "ConfigHashes",
+        "canonical_json",
+        "partition",
+        "compute_hashes",
+    ),
     "qtros/configuration/loader.py": ("ConfigLoader", "ResolvedBacktestConfig", "MIGRATIONS"),
     "qtros/configuration/registry.py": ("StrategyRegistry", "strategy_registry"),
     "qtros/risk/limits.py": ("MaxLotRule", "MaxNotionalExposureRule"),
     "qtros/risk/sizing.py": ("FixedFractionalSizer",),
-    "qtros/risk/engine.py": ("RiskEngine", "RiskEngine.on_bar_close", "RiskEngine.approve", "RiskEvent"),
+    "qtros/risk/engine.py": (
+        "RiskEngine",
+        "RiskEngine.on_bar_close",
+        "RiskEngine.approve",
+        "RiskEvent",
+    ),
     "qtros/alpha/base.py": ("StrategyBase", "register_strategy", "verify_feature_provenance"),
     "qtros/engine/backtester.py": ("Backtester", "Backtester._step", "BacktestResult"),
     # ARCH-009 — timekeeping, wiring, Layer 5, persistence
-    "qtros/domain/timekeeping/calendar.py": ("SessionCalendar", "SessionCalendar.trading_day_for", "SessionCalendar.classify_gap", "localize"),
+    "qtros/domain/timekeeping/calendar.py": (
+        "SessionCalendar",
+        "SessionCalendar.trading_day_for",
+        "SessionCalendar.classify_gap",
+        "localize",
+    ),
     "qtros/domain/manifest.py": ("RunManifest",),
     "qtros/configuration/models/calendar.py": ("CalendarConfig", "CalendarConfig.to_calendar"),
     "qtros/configuration/models/features.py": ("FeatureSetConfig", "TransformRefConfig"),
-    "qtros/engine/builder.py": ("build_run", "compute_features", "run_from_config", "RunComponents"),
+    "qtros/engine/builder.py": (
+        "build_run",
+        "compute_features",
+        "run_from_config",
+        "RunComponents",
+    ),
     "qtros/analytics/metrics.py": ("trade_statistics", "sharpe_ratio", "drawdown", "daily_equity"),
     "qtros/analytics/concentration.py": ("concentration", "ConcentrationResult"),
     "qtros/analytics/attribution.py": ("attribute", "friction_attribution"),
@@ -89,7 +114,11 @@ REQUIRED: dict[str, tuple[str, ...]] = {
     "qtros/workflow.py": ("execute", "load_bars", "ingest_source", "BASE_INPUT_COLUMNS"),
     "qtros/logging_setup.py": ("configure_logging",),
     "qtros/analytics/render/__init__.py": ("render_report", "equity_curve_svg"),
-    "qtros/persistence/registry.py": ("scan_results", "export_registry", "render_registry_markdown"),
+    "qtros/persistence/registry.py": (
+        "scan_results",
+        "export_registry",
+        "render_registry_markdown",
+    ),
 }
 
 # Source text that must appear, for changes that add no new top-level symbol.
@@ -104,9 +133,7 @@ REQUIRED_TEXT: dict[str, tuple[tuple[str, str], ...]] = {
     "qtros/features/transforms/vwap.py": (
         ("TransformBase", "ARCH-007 transform scaffold migration"),
     ),
-    "qtros/features/pipeline.py": (
-        ("seal_features", "ARCH-007 provenance sealing"),
-    ),
+    "qtros/features/pipeline.py": (("seal_features", "ARCH-007 provenance sealing"),),
     "qtros/risk/engine.py": (
         ("RISK_APPROVAL", "ARCH-008 risk engine is the sole minter of approvals"),
         ("adverse_extreme", "G-2 adverse-first intrabar drawdown basis (ASS-009)"),
@@ -126,7 +153,10 @@ REQUIRED_TEXT: dict[str, tuple[tuple[str, str], ...]] = {
     ),
     "qtros/features/transforms/atr.py": (
         ("TransformBase", "ARCH-007 transform scaffold migration"),
-        ("min_samples=", "polars >= 1.21 rolling keyword; min_periods raises under filterwarnings=error"),
+        (
+            "min_samples=",
+            "polars >= 1.21 rolling keyword; min_periods raises under filterwarnings=error",
+        ),
     ),
     "qtros/features/transforms/zscore.py": (
         ("TransformBase", "ARCH-007 transform scaffold migration"),
@@ -221,7 +251,9 @@ def main() -> int:
         print("\nRequest the named files; a STALE file is an older revision, not a corrupt one.")
         return 1
 
-    print(f"All {checked} tracked modules and {len(EXPECTED_INIT_FILES)} package markers are current.")
+    print(
+        f"All {checked} tracked modules and {len(EXPECTED_INIT_FILES)} package markers are current."
+    )
     return 0
 
 

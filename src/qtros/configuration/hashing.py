@@ -26,13 +26,15 @@ from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from enum import Enum
 from pathlib import PurePath
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
-from pydantic.fields import FieldInfo
 
 from qtros.configuration.models.base import PROVENANCE_KEY, ProvenanceClass, QtrosConfig
 from qtros.domain.errors import ConfigurationError
+
+if TYPE_CHECKING:
+    from pydantic.fields import FieldInfo
 
 HASH_PREFIX_LENGTH: int = 16
 """Characters of the full digest used as a display identifier."""
@@ -99,9 +101,7 @@ def _canonical_value(value: object, *, path: str) -> object:
         return out
     if isinstance(value, BaseModel):
         return _canonical_value(_model_to_mapping(value), path=path)
-    raise ConfigurationError(
-        f"no canonical form for {type(value).__name__}", path=path
-    )
+    raise ConfigurationError(f"no canonical form for {type(value).__name__}", path=path)
 
 
 def _model_to_mapping(model: BaseModel) -> dict[str, object]:

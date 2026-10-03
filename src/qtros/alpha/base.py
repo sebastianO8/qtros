@@ -16,18 +16,19 @@ matter. This check makes the *feature* path mechanical; it cannot see arithmetic
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
 from decimal import Decimal
 from types import MappingProxyType
-from typing import Any, ClassVar, Protocol, TypeVar, runtime_checkable
+from typing import TYPE_CHECKING, Any, ClassVar, Protocol, TypeVar, runtime_checkable
 
 import structlog
 
 from qtros.configuration.registry import strategy_registry
-from qtros.domain.feature_contracts import Causality
 from qtros.domain.errors import ConfigurationError
-from qtros.domain.feature_contracts import FeatureFrame, SealedFeatureSet
+from qtros.domain.feature_contracts import Causality, FeatureFrame, SealedFeatureSet
 from qtros.domain.signals import BarContext, StrategyDecision, StrategyState
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 _LOGGER = structlog.get_logger(__name__)
 
@@ -119,7 +120,9 @@ class StrategyBase(ABC):
         """
         value = self._parameters.get(name, default)
         if value is None:
-            raise ConfigurationError("missing strategy parameter", strategy=self.strategy_id, name=name)
+            raise ConfigurationError(
+                "missing strategy parameter", strategy=self.strategy_id, name=name
+            )
         if isinstance(value, bool):
             raise ConfigurationError("boolean parameter used as a number", name=name)
         if isinstance(value, Decimal):

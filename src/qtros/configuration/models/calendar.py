@@ -86,12 +86,18 @@ class CalendarConfig(QtrosConfig):
         """
         return SessionCalendar(
             calendar_id=self.calendar_id,
-            week_open=WeekBoundary(self.week_open.weekday, self.week_open.time_local, self.week_open.timezone),
-            week_close=WeekBoundary(self.week_close.weekday, self.week_close.time_local, self.week_close.timezone),
+            week_open=WeekBoundary(
+                self.week_open.weekday, self.week_open.time_local, self.week_open.timezone
+            ),
+            week_close=WeekBoundary(
+                self.week_close.weekday, self.week_close.time_local, self.week_close.timezone
+            ),
             rollover_time_local=rollover_time_local,
             rollover_tz=rollover_tz,
             sessions=tuple(
-                SessionWindow(s.name, s.open_local, s.close_local, s.timezone, frozenset(s.weekdays))
+                SessionWindow(
+                    s.name, s.open_local, s.close_local, s.timezone, frozenset(s.weekdays)
+                )
                 for s in self.sessions
             ),
             holidays=frozenset(self.holidays),

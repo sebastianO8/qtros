@@ -8,9 +8,10 @@ on invariants (reconciliation, determinism, provenance) rather than on a PnL fig
 from __future__ import annotations
 
 import math
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
+from typing import TYPE_CHECKING, NamedTuple
 
 import polars as pl
 import pytest
@@ -18,9 +19,43 @@ import pytest
 from qtros.configuration import ConfigLoader, ResolvedBacktestConfig, strategy_registry
 from qtros.domain.enums import Timeframe
 from qtros.domain.errors import ConfigurationError
-from qtros.engine.builder import build_run, build_transforms, compute_features, run_from_config
+from qtros.engine.builder import (
+    RunComponents,
+    build_run,
+    build_transforms,
+    compute_features,
+    run_from_config,
+)
+
+if TYPE_CHECKING:
+    from qtros.analytics import PerformanceReport
+    from qtros.engine.backtester import BacktestResult
 
 CONFIG_ROOT = Path(__file__).resolve().parent.parent / "config"
+
+
+class ScoredRun(NamedTuple):
+    """A resolved config, its built run graph, the result, and the Layer 5 report."""
+
+    resolved: ResolvedBacktestConfig
+    components: RunComponents
+    result: BacktestResult
+    report: PerformanceReport
+
+
+def scored_run(scored_at: datetime) -> ScoredRun:
+    """Load phase1_mvp, run it on synthetic bars, and score it."""
+    import qtros.alpha.strategies.vwap_pullback  # noqa: F401
+    from qtros.analytics import analyze
+
+    resolved = ConfigLoader(CONFIG_ROOT).load_backtest("phase1_mvp")
+    components, result = run_from_config(resolved, synthetic_bars())
+    return ScoredRun(
+        resolved,
+        components,
+        result,
+        analyze(result, resolved, components.calendar, scored_at_utc=scored_at),
+    )
 
 
 @pytest.fixture(scope="module")
@@ -33,7 +68,7 @@ def synthetic_bars(count: int = 900, start: datetime | None = None) -> pl.DataFr
     first = start or datetime(2024, 1, 8, 0, 0, tzinfo=UTC)  # Monday, inside the FX week
     step = Timeframe.M5.duration
     ts, o, h, lo, c, v = [], [], [], [], [], []
-    # Amplitude and bar range are chosen so a 2×ATR stop sizes to roughly the minimum
+    # Amplitude and bar range are chosen so a 2xATR stop sizes to roughly the minimum
     # lot under 1% risk: a flat sine would size to several lots and the G-1 notional cap
     # would (correctly) reject every entry, leaving nothing to reconcile.
     for i in range(count):
@@ -70,7 +105,10 @@ class TestConfigTree:
     def test_referenced_strategy_is_registered(self, resolved: ResolvedBacktestConfig) -> None:
         import qtros.alpha.strategies.vwap_pullback  # noqa: F401 — registration side effect
 
-        assert (resolved.strategy.strategy_id, resolved.strategy.strategy_version) in strategy_registry
+        assert (
+            resolved.strategy.strategy_id,
+            resolved.strategy.strategy_version,
+        ) in strategy_registry
 
     def test_hashes_are_stable_across_loads(self, resolved: ResolvedBacktestConfig) -> None:
         again = ConfigLoader(CONFIG_ROOT).load_backtest("phase1_mvp")
@@ -80,7 +118,12 @@ class TestConfigTree:
 class TestBuilder:
     def test_transforms_build_from_the_feature_set(self, resolved: ResolvedBacktestConfig) -> None:
         transforms = build_transforms(resolved.features)
-        assert [t.spec.name for t in transforms] == ["true_range", "atr", "anchored_vwap", "rolling_zscore"]
+        assert [t.spec.name for t in transforms] == [
+            "true_range",
+            "atr",
+            "anchored_vwap",
+            "rolling_zscore",
+        ]
 
     def test_features_are_sealed_and_audited(self, resolved: ResolvedBacktestConfig) -> None:
         frame = compute_features(resolved, synthetic_bars())
@@ -100,8 +143,8 @@ class TestBuilder:
         assert components.hashes == resolved.hashes()
 
     def test_wrong_strategy_identity_is_refused(self, resolved: ResolvedBacktestConfig) -> None:
-        from qtros.configuration import StrategyRegistry
         from qtros.alpha.strategies.vwap_pullback import VwapPullback
+        from qtros.configuration import StrategyRegistry
 
         rogue = StrategyRegistry()
         rogue.register("vwap_pullback", "1.0.0", lambda params: VwapPullback(params))
@@ -123,10 +166,17 @@ class TestEndToEnd:
         assert result.bars_processed == components.feature_frame.height
         assert result.decisions_taken == result.bars_processed - 2
         assert len(result.fills) > 0, "the reference strategy should trade on a sine wave"
-        assert sum((f.cash_delta or Decimal("0")) for f in result.fills) == result.final_cash - resolved.backtest.initial_cash
-        assert result.sealed_columns == tuple(sorted(components.feature_frame.sealed_features.features))  # type: ignore[union-attr]
+        assert (
+            sum((f.cash_delta or Decimal("0")) for f in result.fills)
+            == result.final_cash - resolved.backtest.initial_cash
+        )
+        sealed = components.feature_frame.sealed_features
+        assert sealed is not None
+        assert result.sealed_columns == tuple(sorted(sealed.features))
 
-    def test_two_runs_from_the_same_config_are_identical(self, resolved: ResolvedBacktestConfig) -> None:
+    def test_two_runs_from_the_same_config_are_identical(
+        self, resolved: ResolvedBacktestConfig
+    ) -> None:
         import qtros.alpha.strategies.vwap_pullback  # noqa: F401
 
         _, first = run_from_config(resolved, synthetic_bars())

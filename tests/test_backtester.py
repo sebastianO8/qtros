@@ -7,9 +7,9 @@ the loop — not the strategy — is what is under test.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 import polars as pl
 import pytest
@@ -27,15 +27,18 @@ from qtros.domain.feature_contracts import (
     WarmupPlan,
 )
 from qtros.domain.identifiers import SequentialIdFactory
-from qtros.domain.instrument import InstrumentSpec
 from qtros.domain.orders import TradeIntent
 from qtros.domain.signals import BarContext, StrategyDecision, StrategyState
 from qtros.engine import Backtester, BacktestResult, Portfolio
 from qtros.execution.broker import SimulatedBroker
 from qtros.execution.friction import StandardFrictionModel
 from qtros.risk import RiskEngine
-
 from tests.conftest import BAR_INTERVAL, EPOCH, INITIAL_CASH, passing_audit
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+
+    from qtros.domain.instrument import InstrumentSpec
 
 ZERO = Decimal("0")
 FEATURE = "bar_marker"
@@ -67,14 +70,22 @@ def frame_from_bars(
         data.update({k: list(v) for k, v in extra_columns.items()})
     frame = pl.DataFrame(data).with_columns(pl.col("ts_utc").dt.replace_time_zone("UTC"))
     spec = FeatureSpec(
-        name=FEATURE, version="1.0.0", parameters={}, output_columns=(FEATURE,),
-        depends_on=("close",), causality=Causality.CAUSAL,
+        name=FEATURE,
+        version="1.0.0",
+        parameters={},
+        output_columns=(FEATURE,),
+        depends_on=("close",),
+        causality=Causality.CAUSAL,
     )
     seal = SealedFeatureSet(
         {
             FEATURE: SealedFeature(
-                column=FEATURE, transform_name=FEATURE, transform_version="1.0.0",
-                spec_hash=spec.spec_hash(), warmup_bars=0, causality=Causality.CAUSAL,
+                column=FEATURE,
+                transform_name=FEATURE,
+                transform_version="1.0.0",
+                spec_hash=spec.spec_hash(),
+                warmup_bars=0,
+                causality=Causality.CAUSAL,
             )
         }
     )
@@ -112,7 +123,11 @@ class Scripted(StrategyBase):
     strategy_id = "scripted"
     strategy_version = "0.0.1"
 
-    def __init__(self, script: Mapping[int, Sequence[Script]], features: frozenset[str] = frozenset({FEATURE})) -> None:
+    def __init__(
+        self,
+        script: Mapping[int, Sequence[Script]],
+        features: frozenset[str] = frozenset({FEATURE}),
+    ) -> None:
         super().__init__({})
         self._script = dict(script)
         self._features = features
@@ -124,7 +139,9 @@ class Scripted(StrategyBase):
 
     def evaluate(self, ctx: BarContext, state: StrategyState) -> StrategyDecision:
         marker = ctx.features[FEATURE]
-        self.seen.append((ctx.bar_index, ctx.portfolio.is_flat, int(marker) if marker is not None else -1))
+        self.seen.append(
+            (ctx.bar_index, ctx.portfolio.is_flat, int(marker) if marker is not None else -1)
+        )
         intents = tuple(
             TradeIntent(
                 intent_id=f"{ctx.bar_index}-{n}",
@@ -145,9 +162,14 @@ class Scripted(StrategyBase):
 
 def limits(**overrides: object) -> RiskLimitsConfig:
     base: dict[str, object] = {
-        "risk_limits_id": "test", "max_drawdown_pct": "10", "risk_per_trade_pct": "1",
-        "atr_stop_multiple": "2", "atr_lookback_bars": 14, "max_lot": "5",
-        "max_notional_pct": "1000", "on_limit_breach": "HALT_RUN",
+        "risk_limits_id": "test",
+        "max_drawdown_pct": "10",
+        "risk_per_trade_pct": "1",
+        "atr_stop_multiple": "2",
+        "atr_lookback_bars": 14,
+        "max_lot": "5",
+        "max_notional_pct": "1000",
+        "on_limit_breach": "HALT_RUN",
     }
     base.update(overrides)
     return RiskLimitsConfig(**base)  # type: ignore[arg-type]
@@ -181,8 +203,16 @@ def run(
 
 
 class TestRunLoopOrder:
-    def test_decision_at_t_fills_at_the_open_of_t_plus_one(self, instrument: InstrumentSpec) -> None:
-        bars = [("95.000",) * 4, ("95.000",) * 4, ("95.000",) * 4, ("96.000", "96.000", "96.000", "96.000"), ("96.000",) * 4]
+    def test_decision_at_t_fills_at_the_open_of_t_plus_one(
+        self, instrument: InstrumentSpec
+    ) -> None:
+        bars = [
+            ("95.000",) * 4,
+            ("95.000",) * 4,
+            ("95.000",) * 4,
+            ("96.000", "96.000", "96.000", "96.000"),
+            ("96.000",) * 4,
+        ]
         result, _ = run(instrument, bars, {2: [Script(quantity="0.10")]})
         assert len(result.fills) == 1
         fill = result.fills[0]
@@ -190,7 +220,9 @@ class TestRunLoopOrder:
         assert fill.reference_price == Decimal("96.000")
         assert fill.fill_price > fill.reference_price  # adverse friction on a buy
 
-    def test_the_strategy_sees_the_fill_from_the_open_of_the_same_bar(self, instrument: InstrumentSpec) -> None:
+    def test_the_strategy_sees_the_fill_from_the_open_of_the_same_bar(
+        self, instrument: InstrumentSpec
+    ) -> None:
         """Step 1 (execute) precedes step 5 (evaluate): at bar 3 the book is already long."""
         _, strategy = run(instrument, flat_bars(6), {2: [Script(quantity="0.10")]})
         flat_by_bar = {index: is_flat for index, is_flat, _ in strategy.seen}
@@ -200,7 +232,12 @@ class TestRunLoopOrder:
     def test_features_are_t_minus_one(self, instrument: InstrumentSpec) -> None:
         _, strategy = run(instrument, flat_bars(6), {})
         assert all(marker == index - 1 for index, _, marker in strategy.seen)
-        assert [index for index, _, _ in strategy.seen] == [1, 2, 3, 4]  # bar 0 lagless, bar 5 unfillable
+        assert [index for index, _, _ in strategy.seen] == [
+            1,
+            2,
+            3,
+            4,
+        ]  # bar 0 lagless, bar 5 unfillable
 
     def test_no_decision_on_the_final_bar(self, instrument: InstrumentSpec) -> None:
         result, strategy = run(instrument, flat_bars(5), {4: [Script(quantity="0.10")]})
@@ -210,7 +247,8 @@ class TestRunLoopOrder:
 
     def test_signal_exit_closes_the_lifecycle(self, instrument: InstrumentSpec) -> None:
         result, _ = run(
-            instrument, flat_bars(8),
+            instrument,
+            flat_bars(8),
             {1: [Script(quantity="0.10")], 4: [Script(direction=Direction.SHORT, is_exit=True)]},
         )
         assert len(result.closed_trades) == 1
@@ -219,9 +257,12 @@ class TestRunLoopOrder:
         assert trade.fills[1].ts_utc == EPOCH + BAR_INTERVAL * 5
         assert result.open_trade_at_end is None
 
-    def test_exit_then_entry_in_one_bar_starts_a_new_lifecycle(self, instrument: InstrumentSpec) -> None:
+    def test_exit_then_entry_in_one_bar_starts_a_new_lifecycle(
+        self, instrument: InstrumentSpec
+    ) -> None:
         result, _ = run(
-            instrument, flat_bars(8),
+            instrument,
+            flat_bars(8),
             {
                 1: [Script(quantity="0.10")],
                 3: [Script(direction=Direction.SHORT, is_exit=True), Script(quantity="0.10")],
@@ -239,7 +280,9 @@ class TestRunLoopOrder:
 
 
 class TestProtectiveExits:
-    def test_stop_fires_at_the_level_before_the_strategy_is_consulted(self, instrument: InstrumentSpec) -> None:
+    def test_stop_fires_at_the_level_before_the_strategy_is_consulted(
+        self, instrument: InstrumentSpec
+    ) -> None:
         bars = [
             ("95.000", "95.000", "95.000", "95.000"),
             ("95.000", "95.000", "95.000", "95.000"),  # decide here → fill at bar 2 open
@@ -259,24 +302,43 @@ class TestProtectiveExits:
         assert dict((i, f) for i, f, _ in strategy.seen)[3] is True
 
     def test_gap_through_the_stop_fills_at_the_open(self, instrument: InstrumentSpec) -> None:
-        bars = [*flat_bars(2), ("95.000",) * 4, ("94.000", "94.100", "93.900", "94.000"), *flat_bars(2, "94.000")]
+        bars = [
+            *flat_bars(2),
+            ("95.000",) * 4,
+            ("94.000", "94.100", "93.900", "94.000"),
+            *flat_bars(2, "94.000"),
+        ]
         result, _ = run(instrument, bars, {1: [Script(quantity="0.10", stop="94.500")]})
         exit_fill = result.closed_trades[0].fills[-1]
         assert exit_fill.reference_price == Decimal("94.000")
 
     def test_target_fires(self, instrument: InstrumentSpec) -> None:
-        bars = [*flat_bars(2), ("95.000",) * 4, ("95.000", "95.700", "95.000", "95.500"), *flat_bars(2, "95.500")]
+        bars = [
+            *flat_bars(2),
+            ("95.000",) * 4,
+            ("95.000", "95.700", "95.000", "95.500"),
+            *flat_bars(2, "95.500"),
+        ]
         result, _ = run(instrument, bars, {1: [Script(quantity="0.10", target="95.600")]})
         trade = result.closed_trades[0]
         assert trade.exit_reason is ExitReason.TAKE_PROFIT
         assert trade.fills[-1].reference_price == Decimal("95.600")
 
     def test_ambiguous_bar_resolves_to_the_stop(self, instrument: InstrumentSpec) -> None:
-        bars = [*flat_bars(2), ("95.000",) * 4, ("95.000", "95.700", "94.400", "95.000"), *flat_bars(2)]
-        result, _ = run(instrument, bars, {1: [Script(quantity="0.10", stop="94.500", target="95.600")]})
+        bars = [
+            *flat_bars(2),
+            ("95.000",) * 4,
+            ("95.000", "95.700", "94.400", "95.000"),
+            *flat_bars(2),
+        ]
+        result, _ = run(
+            instrument, bars, {1: [Script(quantity="0.10", stop="94.500", target="95.600")]}
+        )
         assert result.closed_trades[0].exit_reason is ExitReason.STOP_LOSS
 
-    def test_entry_filled_at_open_can_be_stopped_in_the_same_bar(self, instrument: InstrumentSpec) -> None:
+    def test_entry_filled_at_open_can_be_stopped_in_the_same_bar(
+        self, instrument: InstrumentSpec
+    ) -> None:
         bars = [*flat_bars(2), ("95.000", "95.000", "94.300", "94.400"), *flat_bars(3, "94.400")]
         result, _ = run(instrument, bars, {1: [Script(quantity="0.10", stop="94.500")]})
         trade = result.closed_trades[0]
@@ -290,20 +352,27 @@ class TestProtectiveExits:
 
 
 class TestRiskHalt:
-    def test_intrabar_breach_halts_and_blocks_later_entries_but_not_the_exit(self, instrument: InstrumentSpec) -> None:
+    def test_intrabar_breach_halts_and_blocks_later_entries_but_not_the_exit(
+        self, instrument: InstrumentSpec
+    ) -> None:
         # 1.00 lot long from 95.000; a low of 93.800 is -120,000 (12%) intrabar.
         bars = [
             *flat_bars(2),
-            ("95.000",) * 4,                               # entry fills here (bar 2)
-            ("95.000", "95.100", "93.800", "95.000"),      # breach intrabar, close flat
-            ("95.000",) * 4,                               # entry attempt → RISK_HALTED
-            ("95.000",) * 4,                               # exit attempt → approved
+            ("95.000",) * 4,  # entry fills here (bar 2)
+            ("95.000", "95.100", "93.800", "95.000"),  # breach intrabar, close flat
+            ("95.000",) * 4,  # entry attempt → RISK_HALTED
+            ("95.000",) * 4,  # exit attempt → approved
             ("95.000",) * 4,
             ("95.000",) * 4,
         ]
         result, _ = run(
-            instrument, bars,
-            {1: [Script(quantity="1.00")], 4: [Script(quantity="0.10")], 5: [Script(direction=Direction.SHORT, is_exit=True)]},
+            instrument,
+            bars,
+            {
+                1: [Script(quantity="1.00")],
+                4: [Script(quantity="0.10")],
+                5: [Script(direction=Direction.SHORT, is_exit=True)],
+            },
         )
         halts = [e for e in result.risk_events if e.kind is RiskEventKind.DRAWDOWN_HALT]
         assert len(halts) == 1 and halts[0].bar_index == 3
@@ -322,11 +391,17 @@ class TestRiskHalt:
 class TestRunInvariants:
     def test_every_run_reconciles_exactly(self, instrument: InstrumentSpec) -> None:
         bars = [
-            *flat_bars(2), ("95.000",) * 4, ("95.300", "95.600", "95.100", "95.400"),
-            ("95.400", "95.400", "94.900", "95.000"), ("95.000",) * 4, ("96.000",) * 4, ("96.000",) * 4,
+            *flat_bars(2),
+            ("95.000",) * 4,
+            ("95.300", "95.600", "95.100", "95.400"),
+            ("95.400", "95.400", "94.900", "95.000"),
+            ("95.000",) * 4,
+            ("96.000",) * 4,
+            ("96.000",) * 4,
         ]
         result, _ = run(
-            instrument, bars,
+            instrument,
+            bars,
             {
                 1: [Script(quantity="0.30")],
                 3: [Script(direction=Direction.SHORT, is_exit=True, quantity="0.10")],
@@ -338,7 +413,12 @@ class TestRunInvariants:
         assert sum((f.cash_delta or ZERO) for f in result.fills) == result.final_cash - INITIAL_CASH
 
     def test_identical_inputs_produce_identical_runs(self, instrument: InstrumentSpec) -> None:
-        bars = [*flat_bars(2), ("95.000",) * 4, ("95.000", "95.700", "94.400", "95.000"), *flat_bars(3)]
+        bars = [
+            *flat_bars(2),
+            ("95.000",) * 4,
+            ("95.000", "95.700", "94.400", "95.000"),
+            *flat_bars(3),
+        ]
         script = {1: [Script(quantity="0.10", stop="94.500", target="95.600")]}
         first, _ = run(instrument, bars, script)
         second, _ = run(instrument, bars, script)
@@ -354,7 +434,9 @@ class TestRunInvariants:
         assert len(result.fills) == 1
         assert result.reconciliation.passed
 
-    def test_unsealed_frame_is_refused_before_the_run_starts(self, instrument: InstrumentSpec) -> None:
+    def test_unsealed_frame_is_refused_before_the_run_starts(
+        self, instrument: InstrumentSpec
+    ) -> None:
         ids = SequentialIdFactory("x")
         with pytest.raises(StrategyProvenanceError):
             Backtester(
@@ -367,7 +449,9 @@ class TestRunInvariants:
                 ids=ids,
             )
 
-    def test_undeclared_feature_is_refused_before_the_run_starts(self, instrument: InstrumentSpec) -> None:
+    def test_undeclared_feature_is_refused_before_the_run_starts(
+        self, instrument: InstrumentSpec
+    ) -> None:
         ids = SequentialIdFactory("x")
         with pytest.raises(StrategyProvenanceError):
             Backtester(

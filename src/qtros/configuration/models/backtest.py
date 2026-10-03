@@ -124,7 +124,9 @@ class BacktestConfig(QtrosConfig):
     reporting_ref: str = Field(min_length=1, **provenance(ProvenanceClass.REPORT_AFFECTING))
     rng_seed: int = 0
     initial_cash: StrictDecimal
-    paths: PathsConfig = Field(default_factory=PathsConfig, **provenance(ProvenanceClass.OPERATIONAL))
+    paths: PathsConfig = Field(
+        default_factory=PathsConfig, **provenance(ProvenanceClass.OPERATIONAL)
+    )
     runtime: RuntimeConfig = Field(
         default_factory=RuntimeConfig, **provenance(ProvenanceClass.OPERATIONAL)
     )

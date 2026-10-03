@@ -9,10 +9,13 @@ happens inside fill arithmetic, where a float would already have contaminated th
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from qtros.domain.errors import SchemaContractError
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,8 +55,10 @@ class BarData:
                 "BarData timestamp is timezone-naive",
                 ts=self.ts_utc.isoformat(),
             )
-        if self.high < self.low or self.high < max(self.open, self.close) or self.low > min(
-            self.open, self.close
+        if (
+            self.high < self.low
+            or self.high < max(self.open, self.close)
+            or self.low > min(self.open, self.close)
         ):
             raise SchemaContractError(
                 "BarData violates OHLC relationships",

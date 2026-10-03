@@ -8,16 +8,20 @@ cost killed an edge.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from qtros.analytics.concentration import attribution_day, quarter_key
 from qtros.analytics.metrics import HUNDRED, ZERO, quantize_metric
-from qtros.domain.enums import PeriodAttribution
-from qtros.domain.execution import ExecutionFill, Trade
 from qtros.domain.money import quantize_money
-from qtros.domain.timekeeping import SessionCalendar
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
+
+    from qtros.domain.enums import PeriodAttribution
+    from qtros.domain.execution import ExecutionFill, Trade
+    from qtros.domain.timekeeping import SessionCalendar
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,7 +103,9 @@ class FrictionAttribution:
     pct_of_gross_pnl: Decimal | None
 
 
-def friction_attribution(fills: Sequence[ExecutionFill], trades: Sequence[Trade]) -> FrictionAttribution:
+def friction_attribution(
+    fills: Sequence[ExecutionFill], trades: Sequence[Trade]
+) -> FrictionAttribution:
     """Itemise friction over the ledger.
 
     Args:
@@ -165,9 +171,13 @@ def attribute(
     """
     return AttributionReport(
         by_mechanism=bucketize(trades, lambda t: t.mechanism_tag or "(untagged)"),
-        by_exit_reason=bucketize(trades, lambda t: str(t.exit_reason) if t.exit_reason else "(none)"),
+        by_exit_reason=bucketize(
+            trades, lambda t: str(t.exit_reason) if t.exit_reason else "(none)"
+        ),
         by_direction=bucketize(trades, lambda t: str(t.direction)),
-        by_quarter=bucketize(trades, lambda t: quarter_key(attribution_day(t, attribution, calendar))),
+        by_quarter=bucketize(
+            trades, lambda t: quarter_key(attribution_day(t, attribution, calendar))
+        ),
         friction=friction_attribution(fills, trades),
         attribution=attribution,
     )

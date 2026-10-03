@@ -1,17 +1,17 @@
-"""Configuration schema, loading, hashing, and the strategy registry (ARCH-002 §4–§5).
+"""Configuration schema, loading, hashing, and the strategy registry (ARCH-002 §4-§5).
 
 This package describes a run; it never executes one. It imports ``domain/`` and nothing
 else inside ``qtros`` (import-linter contract "Config describes, never executes").
 
 Three rulings shape it:
 
-* **D-1** — configuration is partitioned into run-affecting, report-affecting, and
+* **D-1** - configuration is partitioned into run-affecting, report-affecting, and
   operational fields, hashed separately, so that re-scoring a stored ledger never
   requires re-running the backtest.
-* **D-2** — every ``Decimal`` field rejects ``float`` input. YAML authors quote their
+* **D-2** - every ``Decimal`` field rejects ``float`` input. YAML authors quote their
   decimals; the schema makes the alternative a validation error rather than a
   silently imprecise number.
-* **G-5** — the significance policy is run-affecting and lives in the run hash.
+* **G-5** - the significance policy is run-affecting and lives in the run hash.
 """
 
 from __future__ import annotations

@@ -43,7 +43,9 @@ class ExecutionConfig(QtrosConfig):
             self.timing is ExecutionTiming.SAME_BAR_CLOSE
             and self.path_assumption is PathAssumption.FAVOURABLE_FIRST
         ):
-            raise ValueError("SAME_BAR_CLOSE with FAVOURABLE_FIRST stacks two optimistic assumptions")
+            raise ValueError(
+                "SAME_BAR_CLOSE with FAVOURABLE_FIRST stacks two optimistic assumptions"
+            )
         return self
 
     @property

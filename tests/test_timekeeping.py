@@ -29,8 +29,8 @@ def fx() -> SessionCalendar:
     )
 
 
-def utc(*args: int) -> datetime:
-    return datetime(*args, tzinfo=UTC)
+def utc(year: int, month: int, day: int, hour: int = 0, minute: int = 0) -> datetime:
+    return datetime(year, month, day, hour, minute, tzinfo=UTC)
 
 
 class TestTradingDay:
@@ -107,7 +107,10 @@ class TestSessions:
 class TestLayerZeroSurface:
     def test_expected_bar_count_excludes_closed_time(self, fx: SessionCalendar) -> None:
         # Friday 21:00 → Sunday 23:00 UTC: 12 bars Friday, 12 bars Sunday, nothing between.
-        assert fx.expected_bar_count(utc(2024, 1, 5, 21, 0), utc(2024, 1, 7, 23, 0), Timeframe.M5) == 24
+        assert (
+            fx.expected_bar_count(utc(2024, 1, 5, 21, 0), utc(2024, 1, 7, 23, 0), Timeframe.M5)
+            == 24
+        )
 
     def test_weekend_gap(self, fx: SessionCalendar) -> None:
         assert fx.classify_gap(utc(2024, 1, 5, 21, 55), utc(2024, 1, 7, 22, 0)) is GapKind.WEEKEND

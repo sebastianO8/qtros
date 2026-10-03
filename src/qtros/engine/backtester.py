@@ -26,27 +26,30 @@ remembers them per lifecycle and arms them on the position copy it hands to the 
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from decimal import Decimal
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 import structlog
 
 from qtros.alpha.base import IStrategy, verify_feature_provenance
 from qtros.domain.enums import OrderRejectionCode
 from qtros.domain.errors import QtrosError
-from qtros.domain.execution import EquitySnapshot, ExecutionFill, ReconciliationReport, Trade
-from qtros.domain.feature_contracts import FeatureFrame, SealedFeatureSet
-from qtros.domain.identifiers import SequentialIdFactory, TradeId
-from qtros.domain.instrument import InstrumentSpec
-from qtros.domain.market import BarData
 from qtros.domain.orders import ApprovedOrder, RejectedIntent, TradeIntent
-from qtros.domain.signals import PortfolioView, StrategyState
 from qtros.engine.context import BarContextFactory
 from qtros.engine.portfolio import Portfolio, equity_curve_bounds
-from qtros.execution.broker import BrokerResult, SimulatedBroker
-from qtros.risk.engine import RiskEngine, RiskEvent
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from qtros.domain.execution import EquitySnapshot, ExecutionFill, ReconciliationReport, Trade
+    from qtros.domain.feature_contracts import FeatureFrame, SealedFeatureSet
+    from qtros.domain.identifiers import SequentialIdFactory, TradeId
+    from qtros.domain.instrument import InstrumentSpec
+    from qtros.domain.market import BarData
+    from qtros.domain.signals import PortfolioView, StrategyState
+    from qtros.execution.broker import BrokerResult, SimulatedBroker
+    from qtros.risk.engine import RiskEngine, RiskEvent
 
 _LOGGER: Final = structlog.get_logger(__name__)
 
@@ -55,7 +58,7 @@ class BacktestError(QtrosError):
     """The run could not be completed."""
 
 
-class ReconciliationFailed(BacktestError):
+class ReconciliationFailedError(BacktestError):
     """Directive 6 did not hold at the end of the run."""
 
 
@@ -215,7 +218,7 @@ class Backtester:
             The immutable result.
 
         Raises:
-            ReconciliationFailed: If Directive 6 fails and ``allow_unreconciled`` is off.
+            ReconciliationFailedError: If Directive 6 fails and ``allow_unreconciled`` is off.
         """
         bar_count: int = self._factory.bar_count
         if bar_count < 2:
@@ -238,7 +241,7 @@ class Backtester:
         self._portfolio.mark_open_position_at_end(final_bar, bar_index=bar_count - 1)
         report: ReconciliationReport = self._portfolio.reconcile()
         if not report.passed and not self._allow_unreconciled:
-            raise ReconciliationFailed(report.summary(), discrepancy=str(report.discrepancy))
+            raise ReconciliationFailedError(report.summary(), discrepancy=str(report.discrepancy))
 
         peak, max_drawdown = equity_curve_bounds(self._equity)
         result = BacktestResult(
@@ -308,7 +311,7 @@ class Backtester:
             session_index=session.session_index,
         )
 
-        # 5–7 only inside the decision window (ASS-001, ASS-002).
+        # 5-7 only inside the decision window (ASS-001, ASS-002).
         if not self._factory.first_decision_index <= index <= self._factory.last_decision_index:
             return state
 
@@ -327,17 +330,19 @@ class Backtester:
             trade_id: TradeId = self._lifecycle_for(intent, exits_pending_close)
             approval = self._risk.approve(intent, view=view, bar=bar, trade_id=trade_id)
             if approval.order is None:
-                assert approval.rejection is not None  # noqa: S101 — exactly one side set
+                assert approval.rejection is not None
                 self._rejected.append(approval.rejection)
                 continue
             # 7. Queue for t+1, remembering the protective levels the intent declared.
-            order: ApprovedOrder = approval.order
-            self._pending.append(order)
-            if not order.is_exit:
-                self._pending_levels[order.order_id] = ProtectiveLevels(
+            approved: ApprovedOrder = approval.order
+            self._pending.append(approved)
+            if not approved.is_exit:
+                self._pending_levels[approved.order_id] = ProtectiveLevels(
                     stop=intent.stop_loss, target=intent.take_profit
                 )
-            elif view.open_position is not None and order.quantity >= view.open_position.quantity:
+            elif (
+                view.open_position is not None and approved.quantity >= view.open_position.quantity
+            ):
                 exits_pending_close = True
 
         return decision.state
@@ -431,7 +436,7 @@ class Backtester:
         )
         approval = self._risk.approve(intent, view=view, bar=bar, trade_id=position.trade_id)
         if approval.order is None:
-            assert approval.rejection is not None  # noqa: S101
+            assert approval.rejection is not None
             self._rejected.append(approval.rejection)
             return
 

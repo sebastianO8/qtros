@@ -15,8 +15,6 @@ Design rules:
 
 from __future__ import annotations
 
-from typing import Any
-
 
 class QtrosError(Exception):
     """Root of every deliberate exception in the system.
@@ -27,10 +25,10 @@ class QtrosError(Exception):
             to the structured logger. Values should be JSON-serialisable.
     """
 
-    def __init__(self, message: str, **context: Any) -> None:  # noqa: ANN401
+    def __init__(self, message: str, **context: object) -> None:
         super().__init__(message)
         self.message: str = message
-        self.context: dict[str, Any] = dict(context)
+        self.context: dict[str, object] = dict(context)
 
     def __str__(self) -> str:
         """Return the message with any structured context appended."""
@@ -113,7 +111,7 @@ class FeatureError(QtrosError):
     """Base class for all Layer 0.5 failures."""
 
 
-class LookaheadDetected(FeatureError):
+class LookaheadDetected(FeatureError):  # noqa: N818 - a finding, not a failure; archived docs cite the name
     """A feature's value at bar *t* changed when data after *t* was removed.
 
     This is Directive 1 failing, detected mechanically rather than by review. It is

@@ -19,11 +19,10 @@ overstate available capital for the entire holding period.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 import structlog
 
@@ -38,10 +37,14 @@ from qtros.domain.execution import (
     weighted_average_price,
 )
 from qtros.domain.identifiers import FillId, SequentialIdFactory, TradeId
-from qtros.domain.instrument import InstrumentSpec
-from qtros.domain.market import BarData
 from qtros.domain.money import apportion, quantize_money, quantize_price
 from qtros.domain.signals import PortfolioView
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from qtros.domain.instrument import InstrumentSpec
+    from qtros.domain.market import BarData
 
 _LOGGER: Final = structlog.get_logger(__name__)
 
@@ -340,10 +343,7 @@ class Portfolio:
 
         combined_quantity: Decimal = position.quantity + booked.quantity
         weighted: Decimal = quantize_price(
-            (
-                position.avg_entry_price * position.quantity
-                + booked.fill_price * booked.quantity
-            )
+            (position.avg_entry_price * position.quantity + booked.fill_price * booked.quantity)
             / combined_quantity
         )
 
@@ -552,9 +552,7 @@ class Portfolio:
             The assembled trade.
         """
         fills: tuple[ExecutionFill, ...] = tuple(self._current_fills)
-        entry_quantity: Decimal = sum(
-            (fill.quantity for fill in fills if fill.is_entry), ZERO
-        )
+        entry_quantity: Decimal = sum((fill.quantity for fill in fills if fill.is_entry), ZERO)
         # realized_pnl is measured at fill prices, which already carry spread and
         # slippage. Adding the implicit costs back reconstructs the PnL that would have
         # been earned at the reference prices, which is what "gross" should mean.
