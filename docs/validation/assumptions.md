@@ -1,8 +1,8 @@
 # Assumptions Registry
 
 **Project:** Quantitative Trading Research OS
-**Governing document:** Master Project Constitution v3.2 + PI rulings ARCH-001 … ARCH-006
-**Status:** ASS-001 … ASS-005 ratified. ASS-006 and ASS-007 raised in ARCH-006, awaiting ruling.
+**Governing document:** Master Project Constitution v3.2 + PI rulings ARCH-001 … ARCH-007, G-1 … G-5
+**Status:** ASS-001 … ASS-005 ratified. ASS-006 and ASS-007 raised in ARCH-006, implemented as stated, awaiting formal ruling. ASS-008 and ASS-009 ratified by G-1 and G-2 (2026-10-03).
 **Maintainer:** Principal Investigator
 
 ---
@@ -409,8 +409,102 @@ populates the final two places.
 
 ---
 
+## ASS-008 — Exposure is capped by notional and lot limits, not by a margin model
+
+| Field | Value |
+|---|---|
+| **Status** | Ratified (PI ruling G-1, 2026-10-03) |
+| **Severity if wrong** | **High** for leveraged deployment — permits positions a real account could not hold |
+| **Implementation** | `risk/limits.py` → `MaxNotionalExposureRule`, `MaxLotRule`; `configuration/models/risk.py` → `RiskLimitsConfig.max_lot`, `max_notional_pct` |
+| **Verified by** | `tests/test_risk.py::TestExposureRules` |
+
+### Statement
+
+Phase 1 does not model margin requirement, initial or maintenance. Instead, every entry is
+bounded by two independent caps evaluated by the risk engine before approval:
+
+* **Notional cap** — `quantity × contract_size × reference_price` may not exceed
+  `max_notional_pct` of closed equity (plus any already-open notional).
+* **Hard lot cap** — `quantity` may not exceed `max_lot`, regardless of equity.
+
+An entry breaching either cap is **rejected**, not resized down. A resize would make the
+strategy's realised risk differ silently from its declared risk.
+
+### Rationale
+
+A margin model needs the broker's leverage schedule, which varies by firm, instrument, and
+account tier and is not knowable in Phase 1. Two caps that are explicit, conservative, and
+visible in the rejection stream are more honest than a margin model built on a guessed
+leverage ratio. ASS-005 already establishes that notional never leaves the account, so the
+notional cap is what stands in for the capital the position would otherwise tie up.
+
+### Failure mode if wrong
+
+Caps set too loose permit a backtested position size that a prop-firm account could not
+hold, so the backtest's drawdown and return are both computed on exposure that would have
+been margin-called in practice. Caps set too tight reject viable trades, which costs
+opportunity rather than capital and is visible in `rejected_intents`.
+
+### Review trigger
+
+Before Phase 4 prop-firm deployment, where the firm's leverage schedule becomes knowable
+and a real margin model (ASS-005 review trigger) replaces these caps.
+
+---
+
+## ASS-009 — Drawdown halt evaluates the adverse-first intrabar extreme and blocks entries only
+
+| Field | Value |
+|---|---|
+| **Status** | Ratified (PI ruling G-2, 2026-10-03) |
+| **Severity if wrong** | **High** — a close-only drawdown understates the loss a prop firm would have measured |
+| **Implementation** | `risk/engine.py` → `RiskEngine.on_bar_close`, `RiskEngine.approve`; `engine/backtester.py` → `Backtester._adverse_mtm` |
+| **Verified by** | `tests/test_risk.py::TestDrawdownHalt`, `tests/test_backtester.py::TestRiskHalt` |
+
+### Statement
+
+At each bar close the risk engine computes the **worst** mark-to-market equity the open
+position reached within that bar, under the ADVERSE_FIRST path assumption: cash plus
+unrealised PnL marked at the bar's low for a long, or its high for a short. Drawdown is
+measured from the running peak of close-of-bar MTM equity to that intrabar extreme. If it
+reaches `max_drawdown_pct`, the engine enters the halted state.
+
+A halt **blocks new entries only**. Exit intents, protective stops, and targets continue to
+be approved and executed, so an open position is managed to its conclusion rather than
+frozen or force-flattened at an invented price.
+
+### Rationale
+
+Prop firms measure loss limits on intraday mark-to-market, not on closes. A bar whose close
+recovers above the limit but whose low breached it would have ended a funded account; a
+close-only check would miss it and report the strategy as compliant. ADVERSE_FIRST is the
+same assumption the broker already uses to resolve ambiguous bars (ARCH-001 C-1), so the
+halt and the fills agree about what the bar did.
+
+Blocking entries only, rather than flattening, avoids inventing a fill: the halt is a
+decision about future risk, and the open position's exit is still governed by the strategy
+and its protective levels under the same rules as before the halt.
+
+### Failure mode if wrong
+
+**Close-only evaluation:** understates maximum drawdown for any strategy with wide stops or
+intrabar volatility, passes gates a funded account would have failed, and first appears as a
+breached loss limit in live trading.
+
+**Halt force-flattens:** introduces a fill at a price the strategy never chose, with an exit
+reason the strategy never produced, and makes trade statistics depend on the risk limit
+rather than on the mechanism under test.
+
+### Review trigger
+
+Any change to `PathAssumption` defaults; any prop-firm rule set that measures drawdown on a
+different basis (for example end-of-day balance); Phase 2 daily-loss and consistency rules.
+
+---
+
 ## Change log
 
 | Date | Change |
 |---|---|
 | ARCH-006 | Registry created. ASS-001 … ASS-005 recorded as ratified. ASS-006 and ASS-007 raised from findings during test authoring. |
+| 2026-10-03 | ASS-008 (G-1 exposure caps) and ASS-009 (G-2 adverse-first drawdown halt) recorded as ratified. |

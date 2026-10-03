@@ -285,4 +285,116 @@ class OrderRejectionCode(StrEnum):
     NON_POSITIVE_QUANTITY = "NON_POSITIVE_QUANTITY"
     NO_EXECUTION_BAR = "NO_EXECUTION_BAR"
     INSTRUMENT_MISMATCH = "INSTRUMENT_MISMATCH"
-    MARKET_CLOSED = "MARKET_CLOSED"
+    MARKET_CLOSED = "MARKET_CLOSED"    # ARCH-008 additions — Layer 3 (risk) rejection reasons. Append-only.
+    RISK_HALTED = "RISK_HALTED"
+    """Entry refused because the drawdown halt is active (G-2). Exits are never refused
+    for this reason."""
+
+    EXCEEDS_MAX_LOT = "EXCEEDS_MAX_LOT"
+    """Sized quantity exceeds the hard lot cap (G-1, ASS-008)."""
+
+    EXCEEDS_NOTIONAL_CAP = "EXCEEDS_NOTIONAL_CAP"
+    """Resulting notional exposure exceeds the configured share of equity (G-1, ASS-008)."""
+
+    MAX_POSITIONS_OPEN = "MAX_POSITIONS_OPEN"
+    """Entry would exceed ``max_concurrent_positions``."""
+
+    NO_STOP_FOR_SIZING = "NO_STOP_FOR_SIZING"
+    """Entry carries no stop level, so fixed-fractional sizing has no risk distance."""
+
+    SIZED_TO_ZERO = "SIZED_TO_ZERO"
+    """Sizing produced a quantity below the minimum lot under ``REJECT_ORDER``."""
+
+    NO_OPEN_POSITION = "NO_OPEN_POSITION"
+    """Exit requested while flat."""
+
+
+# --------------------------------------------------------------------------------------
+# ARCH-008 — configuration vocabulary (ARCH-002 §4) and risk (G-1, G-2)
+# --------------------------------------------------------------------------------------
+
+
+class DrawdownBasis(StrEnum):
+    """Equity basis a drawdown limit is measured on (ARCH-001 C-1)."""
+
+    MARK_TO_MARKET = "MARK_TO_MARKET"
+    """Cash plus open-position mark. The only basis a prop firm uses, and the default."""
+
+    CLOSED_EQUITY = "CLOSED_EQUITY"
+    """Cash only. Available for comparison; never the gate basis."""
+
+
+class BreachAction(StrEnum):
+    """What the risk engine does when a limit is breached."""
+
+    HALT_SESSION = "HALT_SESSION"
+    """Block new entries for the remainder of the current session."""
+
+    HALT_RUN = "HALT_RUN"
+    """Block new entries for the remainder of the run."""
+
+
+class CommissionModel(StrEnum):
+    """How commission is charged."""
+
+    PER_LOT = "PER_LOT"
+    PER_NOTIONAL = "PER_NOTIONAL"
+    NONE = "NONE"
+
+
+class SpreadModel(StrEnum):
+    """Where the spread figure comes from."""
+
+    FIXED_TICKS = "FIXED_TICKS"
+    INSTRUMENT_TYPICAL = "INSTRUMENT_TYPICAL"
+
+
+class SlippageModel(StrEnum):
+    """How slippage is sized."""
+
+    FIXED_TICKS = "FIXED_TICKS"
+    ATR_FRACTION = "ATR_FRACTION"
+
+
+class SignificanceTier(StrEnum):
+    """Trade-count tier a strategy is judged under (ARCH-001 C-2)."""
+
+    STANDARD = "STANDARD"
+    """400 closed trades, single instrument."""
+
+    LOW_FREQUENCY = "LOW_FREQUENCY"
+    """At least 60 trades pooled across at least four instruments."""
+
+
+class ReturnBasis(StrEnum):
+    """Equity series the Sharpe ratio is computed from (ARCH-001 C-5)."""
+
+    DAILY_CLOSED_EQUITY = "DAILY_CLOSED_EQUITY"
+    DAILY_MTM_EQUITY = "DAILY_MTM_EQUITY"
+
+
+class ReturnType(StrEnum):
+    """Return arithmetic used for the Sharpe ratio (ARCH-001 C-5)."""
+
+    ARITHMETIC = "ARITHMETIC"
+    LOG = "LOG"
+
+
+class PeriodAttribution(StrEnum):
+    """Which date a trade is attributed to for period statistics (ARCH-001 C-3)."""
+
+    CLOSE_DATE = "CLOSE_DATE"
+    OPEN_DATE = "OPEN_DATE"
+
+
+class RiskEventKind(StrEnum):
+    """Risk engine events recorded to ``risk_events`` (G-2)."""
+
+    DRAWDOWN_HALT = "DRAWDOWN_HALT"
+    """Drawdown limit reached on the adverse-first intrabar basis; entries blocked."""
+
+    HALT_RELEASED = "HALT_RELEASED"
+    """A session-scoped halt lapsed at a session boundary."""
+
+    PEAK_UPDATED = "PEAK_UPDATED"
+    """Running peak equity advanced. Debug-level; not written in Phase 1."""

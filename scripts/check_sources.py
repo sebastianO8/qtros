@@ -60,6 +60,18 @@ REQUIRED: dict[str, tuple[str, ...]] = {
     "qtros/engine/portfolio.py": ("Portfolio", "FillOutcome"),
     "qtros/execution/friction.py": ("StandardFrictionModel", "FrictionCharges"),
     "qtros/execution/broker.py": ("SimulatedBroker._derive_implicit_costs",),
+    # ARCH-008 — configuration, risk, alpha, run loop
+    "qtros/configuration/models/base.py": ("ProvenanceClass", "StrictDecimal", "QtrosConfig", "provenance"),
+    "qtros/configuration/models/strategy.py": ("SignificancePolicyConfig", "StrategyConfig"),
+    "qtros/configuration/models/risk.py": ("RiskLimitsConfig",),
+    "qtros/configuration/hashing.py": ("ConfigHashes", "canonical_json", "partition", "compute_hashes"),
+    "qtros/configuration/loader.py": ("ConfigLoader", "ResolvedBacktestConfig", "MIGRATIONS"),
+    "qtros/configuration/registry.py": ("StrategyRegistry", "strategy_registry"),
+    "qtros/risk/limits.py": ("MaxLotRule", "MaxNotionalExposureRule"),
+    "qtros/risk/sizing.py": ("FixedFractionalSizer",),
+    "qtros/risk/engine.py": ("RiskEngine", "RiskEngine.on_bar_close", "RiskEngine.approve", "RiskEvent"),
+    "qtros/alpha/base.py": ("StrategyBase", "register_strategy", "verify_feature_provenance"),
+    "qtros/engine/backtester.py": ("Backtester", "Backtester._step", "BacktestResult"),
 }
 
 # Source text that must appear, for changes that add no new top-level symbol.
@@ -86,6 +98,17 @@ REQUIRED_TEXT: dict[str, tuple[tuple[str, str], ...]] = {
     "qtros/features/pipeline.py": (
         ("seal_features", "ARCH-007 provenance sealing"),
     ),
+    "qtros/risk/engine.py": (
+        ("RISK_APPROVAL", "ARCH-008 risk engine is the sole minter of approvals"),
+        ("adverse_extreme", "G-2 adverse-first intrabar drawdown basis (ASS-009)"),
+    ),
+    "qtros/configuration/models/strategy.py": (
+        ("ProvenanceClass.RUN_AFFECTING", "G-5 significance policy in the run hash"),
+    ),
+    "qtros/engine/backtester.py": (
+        ("verify_feature_provenance", "G-4 consumer-side DIR-001 check"),
+        ("_resolve_protective_exit", "G-3 step 2 resting exits before the strategy"),
+    ),
 }
 
 EXPECTED_INIT_FILES: tuple[str, ...] = (
@@ -96,6 +119,11 @@ EXPECTED_INIT_FILES: tuple[str, ...] = (
     "qtros/execution/__init__.py",
     "qtros/features/__init__.py",
     "qtros/features/transforms/__init__.py",
+    "qtros/configuration/__init__.py",
+    "qtros/configuration/models/__init__.py",
+    "qtros/risk/__init__.py",
+    "qtros/alpha/__init__.py",
+    "qtros/alpha/strategies/__init__.py",
 )
 
 
