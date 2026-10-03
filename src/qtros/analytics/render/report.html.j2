@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<style>
+  :root { --ink:#1b1f24; --muted:#5b6670; --line:#d9dee3; --pass:#1f7a3f; --fail:#b3261e; --warn:#9a6700; --bg:#fbfbfc; }
+  body { font: 14px/1.45 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color: var(--ink); background: var(--bg); margin: 0; padding: 32px; max-width: 1100px; }
+  h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 28px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  .sub { color: var(--muted); margin-bottom: 16px; } code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .banner { padding: 10px 14px; border-radius: 6px; margin: 12px 0; font-weight: 600; }
+  .banner.fail { background: #fde8e6; color: var(--fail); } .banner.warn { background: #fff4d6; color: var(--warn); } .banner.pass { background: #e3f3e8; color: var(--pass); }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; } th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .PASS { color: var(--pass); font-weight: 600; } .FAIL { color: var(--fail); font-weight: 600; } .INSUFFICIENT_SAMPLE, .NOT_EVALUATED { color: var(--warn); font-weight: 600; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+  .tile { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; background: #fff; } .tile .k { color: var(--muted); font-size: 12px; } .tile .v { font-size: 18px; font-variant-numeric: tabular-nums; }
+  svg { background: #fff; border: 1px solid var(--line); border-radius: 6px; }
+  .legend span { display: inline-block; margin-right: 14px; } .legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 32px; }
+</style>
+</head>
+<body>
+<h1>{{ title }}</h1>
+<div class="sub">{{ strategy_id }} {{ strategy_version }} · scored under <code>{{ reporting_id }}</code> · run <code>{{ run_id }}</code></div>
+
+{% if not trusted %}<div class="banner fail">UNTRUSTED — this run did not reconcile or was produced from a dirty working tree. Figures below are not evidence.</div>{% endif %}
+{% for mark in watermarks %}<div class="banner warn">WATERMARK — {{ mark }}</div>{% endfor %}
+{% if gates.publishable %}<div class="banner pass">All in-sample gates passed with a sufficient sample. OOS decay and walk-forward remain NOT_EVALUATED.</div>{% endif %}
+
+<h2>Summary</h2>
+<div class="tiles">
+  <div class="tile"><div class="k">Closed trades</div><div class="v">{{ trades.trade_count }}</div></div>
+  <div class="tile"><div class="k">Net PnL</div><div class="v">{{ trades.net_pnl }}</div></div>
+  <div class="tile"><div class="k">Sharpe ({{ sharpe.return_basis }}, {{ sharpe.annualization_factor }})</div><div class="v">{{ sharpe.sharpe if sharpe.sharpe is not none else "n/a" }}</div></div>
+  <div class="tile"><div class="k">Profit factor</div><div class="v">{{ trades.profit_factor if trades.profit_factor is not none else "n/a" }}</div></div>
+  <div class="tile"><div class="k">Max drawdown (MTM)</div><div class="v">{{ drawdown.max_drawdown_pct }}%</div></div>
+  <div class="tile"><div class="k">Win rate</div><div class="v">{{ trades.win_rate if trades.win_rate is not none else "n/a" }}</div></div>
+  <div class="tile"><div class="k">Expectancy / trade</div><div class="v">{{ trades.expectancy if trades.expectancy is not none else "n/a" }}</div></div>
+  <div class="tile"><div class="k">Total friction</div><div class="v">{{ attribution.friction.total }}</div></div>
+</div>
+
+<h2>Equity</h2>
+<div class="legend"><span><i style="background:#2b6cb0"></i>mark-to-market</span><span><i style="background:#8a94a6"></i>closed</span></div>
+{{ equity_svg | safe }}
+<div class="sub">{{ bars }} bars · peak {{ drawdown.peak_equity }} · trough {{ drawdown.trough_equity }} · worst drawdown {{ drawdown.max_drawdown }} ({{ drawdown.max_drawdown_pct }}%)</div>
+
+<h2>Gates — <code>{{ reporting_id }}</code></h2>
+<table>
+<tr><th>Gate</th><th>Verdict</th><th class="num">Observed</th><th class="num">Threshold</th><th>Note</th></tr>
+{% for c in gates.checks %}<tr><td>{{ c.name }}</td><td class="{{ c.verdict }}">{{ c.verdict }}</td><td class="num">{{ c.observed if c.observed is not none else "—" }}</td><td class="num">{{ c.threshold if c.threshold is not none else "—" }}</td><td>{{ c.detail }}</td></tr>
+{% endfor %}
+<tr><td><strong>{{ gates.kill_criterion.name }}</strong> (kill criterion)</td><td class="{{ gates.kill_criterion.verdict }}">{{ gates.kill_criterion.verdict }}</td><td class="num">{{ gates.kill_criterion.observed if gates.kill_criterion.observed is not none else "—" }}</td><td class="num">{{ gates.kill_criterion.threshold }}</td><td>{{ gates.kill_criterion.detail }}</td></tr>
+</table>
+<div class="sub">Overall: <span class="{{ gates.overall }}">{{ gates.overall }}</span> · sample {{ gates.sample_size }} of {{ gates.required_sample }} required · publishable: {{ "yes" if gates.publishable else "no" }}</div>
+
+<h2>Concentration (C-3) — top {{ concentration.top_n }} share of gross profit, {{ concentration.attribution }}</h2>
+<table>
+<tr><th>Period</th><th class="num">Trades</th><th class="num">Winners</th><th class="num">Gross profit</th><th class="num">Top-N profit</th><th class="num">Share %</th><th class="num">Threshold %</th><th>Breached</th></tr>
+{% for q in concentration.quarterly %}<tr><td>{{ q.period }}</td><td class="num">{{ q.trade_count }}</td><td class="num">{{ q.winner_count }}</td><td class="num">{{ q.gross_profit }}</td><td class="num">{{ q.top_n_profit }}</td><td class="num">{{ q.top_n_share_pct if q.top_n_share_pct is not none else "n/a" }}</td><td class="num">{{ q.threshold_pct }}</td><td class="{{ 'FAIL' if q.breached else 'PASS' }}">{{ "yes" if q.breached else ("no" if q.breached is not none else "n/a") }}</td></tr>
+{% endfor %}
+<tr><td><strong>lifetime</strong></td><td class="num">{{ concentration.lifetime.trade_count }}</td><td class="num">{{ concentration.lifetime.winner_count }}</td><td class="num">{{ concentration.lifetime.gross_profit }}</td><td class="num">{{ concentration.lifetime.top_n_profit }}</td><td class="num">{{ concentration.lifetime.top_n_share_pct if concentration.lifetime.top_n_share_pct is not none else "n/a" }}</td><td class="num">{{ concentration.lifetime.threshold_pct }}</td><td class="{{ 'FAIL' if concentration.lifetime.breached else 'PASS' }}">{{ "yes" if concentration.lifetime.breached else ("no" if concentration.lifetime.breached is not none else "n/a") }}</td></tr>
+</table>
+
+<h2>Attribution</h2>
+{% for label, buckets in [("Mechanism", attribution.by_mechanism), ("Exit reason", attribution.by_exit_reason), ("Direction", attribution.by_direction), ("Quarter", attribution.by_quarter)] %}
+<table>
+<tr><th>{{ label }}</th><th class="num">Trades</th><th class="num">Win rate</th><th class="num">Gross PnL</th><th class="num">Costs</th><th class="num">Net PnL</th></tr>
+{% for b in buckets %}<tr><td>{{ b.key }}</td><td class="num">{{ b.trade_count }}</td><td class="num">{{ b.win_rate if b.win_rate is not none else "n/a" }}</td><td class="num">{{ b.gross_pnl }}</td><td class="num">{{ b.total_costs }}</td><td class="num">{{ b.net_pnl }}</td></tr>
+{% else %}<tr><td colspan="6">no closed trades</td></tr>{% endfor %}
+</table>
+{% endfor %}
+
+<h2>Friction (Directive 2)</h2>
+<table>
+<tr><th>Commission</th><th>Spread</th><th>Slippage</th><th>Total</th><th>Fills</th><th>Per fill</th><th>% of |gross PnL|</th></tr>
+<tr><td>{{ attribution.friction.commission }}</td><td>{{ attribution.friction.spread }}</td><td>{{ attribution.friction.slippage }}</td><td>{{ attribution.friction.total }}</td><td>{{ attribution.friction.fill_count }}</td><td>{{ attribution.friction.per_fill if attribution.friction.per_fill is not none else "n/a" }}</td><td>{{ attribution.friction.pct_of_gross_pnl if attribution.friction.pct_of_gross_pnl is not none else "n/a" }}</td></tr>
+</table>
+
+<h2>Risk events</h2>
+{% if risk_events %}<table><tr><th>Kind</th><th>Bar</th><th>Time (UTC)</th><th class="num">Peak</th><th class="num">Extreme</th><th class="num">Drawdown</th><th>Detail</th></tr>
+{% for e in risk_events %}<tr><td>{{ e.kind }}</td><td>{{ e.bar_index }}</td><td>{{ e.ts_utc }}</td><td class="num">{{ e.peak_equity }}</td><td class="num">{{ e.extreme_equity }}</td><td class="num">{{ e.drawdown }}</td><td>{{ e.detail }}</td></tr>{% endfor %}</table>
+{% else %}<div class="sub">none</div>{% endif %}
+
+<h2>Rejections</h2>
+{% if rejections %}<table><tr><th>Code</th><th class="num">Count</th></tr>{% for code, n in rejections %}<tr><td>{{ code }}</td><td class="num">{{ n }}</td></tr>{% endfor %}</table>
+{% else %}<div class="sub">none</div>{% endif %}
+
+<h2>Reconciliation (C-10)</h2>
+<div class="sub {{ 'PASS' if reconciliation.passed else 'FAIL' }}">{{ reconciliation_summary }}</div>
+{% if open_trade %}<div class="sub">Position open at end of run: trade <code>{{ open_trade.trade_id }}</code>, {{ open_trade.direction }} {{ open_trade.entry_quantity }} — excluded from every metric above.</div>{% endif %}
+
+<footer>run_hash <code>{{ run_hash }}</code> · report_hash <code>{{ report_hash }}</code> · config_hash <code>{{ config_hash }}</code> · feature set <code>{{ feature_set_hash }}</code> · scored {{ scored_at }}</footer>
+</body>
+</html>

@@ -84,6 +84,12 @@ REQUIRED: dict[str, tuple[str, ...]] = {
     "qtros/analytics/gates.py": ("evaluate_gates", "GateReport"),
     "qtros/persistence/writer.py": ("RunWriter", "RunWriter.write", "run_id_for"),
     "qtros/persistence/serialize.py": ("to_jsonable",),
+    # Phase 1 finish — CLI, workflow, render, registry
+    "qtros/cli.py": ("app", "validate", "run", "ingest", "registry"),
+    "qtros/workflow.py": ("execute", "load_bars", "ingest_source", "BASE_INPUT_COLUMNS"),
+    "qtros/logging_setup.py": ("configure_logging",),
+    "qtros/analytics/render/__init__.py": ("render_report", "equity_curve_svg"),
+    "qtros/persistence/registry.py": ("scan_results", "export_registry", "render_registry_markdown"),
 }
 
 # Source text that must appear, for changes that add no new top-level symbol.
@@ -107,6 +113,12 @@ REQUIRED_TEXT: dict[str, tuple[tuple[str, str], ...]] = {
     ),
     "qtros/configuration/models/strategy.py": (
         ("ProvenanceClass.RUN_AFFECTING", "G-5 significance policy in the run hash"),
+    ),
+    "qtros/persistence/writer.py": (
+        ("ScoredReport", "persistence must not import analytics (sibling layers)"),
+    ),
+    "qtros/workflow.py": (
+        ("BASE_INPUT_COLUMNS", "bookkeeping columns dropped before the G-4 seal check"),
     ),
     "qtros/engine/backtester.py": (
         ("verify_feature_provenance", "G-4 consumer-side DIR-001 check"),

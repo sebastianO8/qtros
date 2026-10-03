@@ -1,0 +1,4 @@
+# Hand-authored registry fields (ARCH-002 §6.2). Keyed by run_id; joined at export time.
+# decision: ACCEPT | REJECT | HOLD. mechanism_note is required by C-3 before a
+# lifetime-concentrated strategy may pass.
+decisions: []

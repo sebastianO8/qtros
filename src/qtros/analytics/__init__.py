@@ -7,6 +7,7 @@ config without being re-run, and the result carries the ``reporting_id`` that sc
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -92,6 +93,7 @@ def analyze(
     calendar: SessionCalendar,
     *,
     scored_at_utc: datetime | None = None,
+    extra_watermarks: Sequence[str] = (),
 ) -> PerformanceReport:
     """Score a run under its reporting configuration.
 
@@ -101,6 +103,8 @@ def analyze(
             are read.
         calendar: For trading-day attribution.
         scored_at_utc: Override the scoring timestamp, for reproducible artifacts.
+        extra_watermarks: Conditions the caller already knows disqualify the run, such
+            as unclean data coverage.
 
     Returns:
         The report.
@@ -119,7 +123,7 @@ def analyze(
         concentration=conc,
         reporting=reporting,
         significance=resolved.strategy.significance,
-        watermarks=watermarks_for(result, resolved),
+        watermarks=(*watermarks_for(result, resolved), *extra_watermarks),
     )
     return PerformanceReport(
         strategy_id=result.strategy_id,

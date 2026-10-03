@@ -33,13 +33,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib import metadata
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, Protocol
 
 import polars as pl
 import structlog
 import yaml
 
-from qtros.analytics import PerformanceReport
 from qtros.configuration.hashing import ConfigHashes, canonical_json
 from qtros.domain.data_contracts import DatasetFingerprint
 from qtros.domain.errors import QtrosError
@@ -60,6 +59,23 @@ WATERMARK_DIRTY_TREE: Final[str] = "UNTRUSTED: run from a dirty git working tree
 
 class PersistenceError(QtrosError):
     """A run artifact could not be written."""
+
+
+class _HasWatermarks(Protocol):
+    @property
+    def watermarks(self) -> tuple[str, ...]: ...
+
+
+class ScoredReport(Protocol):
+    """What the writer needs from a Layer 5 report.
+
+    Declared structurally so ``persistence`` does not import ``analytics``: the two are
+    siblings in the layer contract and may not depend on each other. Any dataclass with
+    a ``gates.watermarks`` tuple qualifies; the rest is serialised generically.
+    """
+
+    @property
+    def gates(self) -> _HasWatermarks: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,11 +188,12 @@ class RunWriter:
         self,
         components: RunComponents,
         result: BacktestResult,
-        report: PerformanceReport,
+        report: ScoredReport,
         *,
         dataset_fingerprint: DatasetFingerprint | None = None,
         run_at_utc: datetime | None = None,
         lookup_git: bool = True,
+        extra_text_files: Mapping[str, str] | None = None,
     ) -> WrittenRun:
         """Write every artifact for one run.
 
@@ -187,6 +204,7 @@ class RunWriter:
             dataset_fingerprint: Content hash of the bars, when known.
             run_at_utc: Override the run timestamp for reproducible identifiers.
             lookup_git: Whether to stamp the git revision.
+            extra_text_files: Additional text artifacts by file name, e.g. ``report.html``.
 
         Returns:
             Where the run landed.
@@ -277,6 +295,11 @@ class RunWriter:
         dump_json("reconciliation.json", result.reconciliation)
         dump_json("performance.json", report)
         dump_json("lag_audit.json", components.feature_frame.lag_audit)
+        for name, text in (extra_text_files or {}).items():
+            if "/" in name or name.startswith("."):
+                raise PersistenceError("extra artifact names must be plain file names", name=name)
+            (directory / name).write_text(text, encoding="utf-8")
+            written.append(name)
 
         _LOGGER.info(
             "persistence.run_written",
