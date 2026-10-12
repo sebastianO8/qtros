@@ -1,0 +1,12 @@
+{
+  "checked_at_utc": "2026-10-12T19:36:19.247106+00:00",
+  "discrepancy": "0",
+  "fill_count": 0,
+  "final_equity_delta": "0",
+  "open_trades_at_end": [],
+  "orphaned_fills": [],
+  "passed": true,
+  "sum_fill_cash_flows": "0",
+  "trade_count": 0,
+  "unbooked_fills": []
+}

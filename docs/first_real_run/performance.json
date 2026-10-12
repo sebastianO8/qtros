@@ -1,0 +1,151 @@
+{
+  "attribution": {
+    "attribution": "CLOSE_DATE",
+    "by_direction": [],
+    "by_exit_reason": [],
+    "by_mechanism": [],
+    "by_quarter": [],
+    "friction": {
+      "commission": "0",
+      "fill_count": 0,
+      "pct_of_gross_pnl": null,
+      "per_fill": null,
+      "slippage": "0",
+      "spread": "0",
+      "total": "0"
+    }
+  },
+  "concentration": {
+    "attribution": "CLOSE_DATE",
+    "boundary_is_inclusive": false,
+    "lifetime": {
+      "breached": null,
+      "gross_profit": "0",
+      "period": "lifetime",
+      "threshold_pct": "60.0",
+      "top_n_profit": "0",
+      "top_n_share_pct": null,
+      "top_trade_ids": [],
+      "trade_count": 0,
+      "winner_count": 0
+    },
+    "quarterly": [],
+    "top_n": 5
+  },
+  "daily_points": 790,
+  "drawdown": {
+    "bars": 213904,
+    "max_drawdown": "0.00",
+    "max_drawdown_pct": "0.000000",
+    "peak_equity": "100000",
+    "peak_ts_utc": "2023-01-02T15:00:00.000000+00:00",
+    "trough_equity": "100000",
+    "trough_ts_utc": "2023-01-02T15:00:00.000000+00:00"
+  },
+  "gates": {
+    "checks": [
+      {
+        "detail": "zero return dispersion",
+        "name": "min_sharpe",
+        "observed": null,
+        "threshold": "1.3",
+        "verdict": "INSUFFICIENT_SAMPLE"
+      },
+      {
+        "detail": "no losing trades",
+        "name": "min_profit_factor",
+        "observed": null,
+        "threshold": "1.4",
+        "verdict": "INSUFFICIENT_SAMPLE"
+      },
+      {
+        "detail": "",
+        "name": "max_drawdown_pct",
+        "observed": "0.000000",
+        "threshold": "10.0",
+        "verdict": "PASS"
+      },
+      {
+        "detail": "no evaluable quarter",
+        "name": "quarterly_concentration",
+        "observed": null,
+        "threshold": "60.0",
+        "verdict": "INSUFFICIENT_SAMPLE"
+      },
+      {
+        "detail": "tier STANDARD",
+        "name": "significance_sample",
+        "observed": "0",
+        "threshold": "400",
+        "verdict": "INSUFFICIENT_SAMPLE"
+      },
+      {
+        "detail": "requires out-of-sample or walk-forward runs",
+        "name": "oos_sharpe_decay_max_pct",
+        "observed": null,
+        "threshold": "30.0",
+        "verdict": "NOT_EVALUATED"
+      },
+      {
+        "detail": "requires out-of-sample or walk-forward runs",
+        "name": "wfo_min_profit_factor",
+        "observed": null,
+        "threshold": "1.15",
+        "verdict": "NOT_EVALUATED"
+      }
+    ],
+    "kill_criterion": {
+      "detail": "no gross profit to concentrate",
+      "name": "lifetime_concentration",
+      "observed": null,
+      "threshold": "60.0",
+      "verdict": "NOT_EVALUATED"
+    },
+    "not_evaluated": [
+      "oos_sharpe_decay_max_pct",
+      "wfo_min_profit_factor"
+    ],
+    "overall": "INSUFFICIENT_SAMPLE",
+    "reporting_id": "constitution_v3_2",
+    "required_sample": 400,
+    "sample_size": 0,
+    "watermarks": [
+      "data coverage not clean (gaps or anomalies allowed by operator)"
+    ]
+  },
+  "reporting_id": "constitution_v3_2",
+  "scored_at_utc": "2026-10-12T19:36:08.374973+00:00",
+  "sharpe": {
+    "annualization_factor": 252,
+    "mean_return": "0.000000",
+    "periods": 789,
+    "reason": "zero return dispersion",
+    "return_basis": "DAILY_CLOSED_EQUITY",
+    "return_type": "ARITHMETIC",
+    "risk_free_rate": "0.0",
+    "sharpe": null,
+    "std_return": "0"
+  },
+  "strategy_id": "vwap_pullback",
+  "strategy_version": "1.0.0",
+  "trades": {
+    "average_bars_held": null,
+    "average_loss": null,
+    "average_win": null,
+    "expectancy": null,
+    "gross_loss": "0",
+    "gross_profit": "0",
+    "largest_loss": "0",
+    "largest_win": "0",
+    "losers": 0,
+    "net_pnl": "0",
+    "open_at_end": false,
+    "profit_factor": null,
+    "scratches": 0,
+    "total_costs": "0",
+    "trade_count": 0,
+    "win_rate": null,
+    "winners": 0
+  },
+  "trusted": true
+}

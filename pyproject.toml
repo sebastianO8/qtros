@@ -21,7 +21,7 @@ version = "0.1.0"
 description = "Quantitative Trading Research OS — solo-PI research and validation pipeline"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "Proprietary" }
+license = { text = "MIT" }
 authors = [{ name = "Principal Investigator" }]
 
 # Upper bounds are deliberate. Polars and DuckDB both ship breaking changes on a

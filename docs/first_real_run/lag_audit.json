@@ -1,0 +1,47 @@
+{
+  "audited_at_utc": "2026-10-12T19:36:15.867271+00:00",
+  "columns_checked": [
+    "true_range",
+    "vwap_session_index",
+    "vwap_session",
+    "close_zscore_50",
+    "atr_14"
+  ],
+  "findings": [],
+  "passed": true,
+  "probe_indices": [
+    50,
+    10663,
+    24910,
+    36560,
+    36684,
+    57314,
+    67924,
+    73933,
+    79562,
+    93911,
+    101040,
+    106202,
+    110301,
+    124988,
+    127434,
+    132351,
+    134078,
+    152981,
+    162152,
+    198180,
+    198744,
+    205519,
+    209609,
+    214087,
+    214088
+  ],
+  "rows_in_frame": 214089,
+  "tolerance": 0.0,
+  "transforms_audited": [
+    "true_range",
+    "anchored_vwap",
+    "rolling_zscore",
+    "atr"
+  ]
+}

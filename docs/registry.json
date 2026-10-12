@@ -1,0 +1,28 @@
+[
+  {
+    "decision": null,
+    "experiment_id": "AUDJPY_VWAP_PULLBACK",
+    "kill_criterion": "NOT_EVALUATED",
+    "lifetime_concentration_pct": null,
+    "max_drawdown_pct": "0.000000",
+    "mechanism_note": "",
+    "net_pnl": "0",
+    "outlier_check": "n/a",
+    "overall": "INSUFFICIENT_SAMPLE",
+    "profit_factor": null,
+    "publishable": false,
+    "report_hash": "79c22fbd144a272ba4e5f54cf474695ac711e0c21c19f413b8465011a42c489f",
+    "reporting_id": "constitution_v3_2",
+    "run_at_utc": "2026-10-12T19:36:08.374973+00:00",
+    "run_hash": "d06f887b7a695cb8b44baabc9221de4edf05305985b0d606139f1031d4afbe5c",
+    "run_id": "20261012-AUDJPY_VWAP_PULLBACK-d06f887b",
+    "sharpe": null,
+    "strategy_id": "vwap_pullback",
+    "strategy_version": "1.0.0",
+    "trade_count": 0,
+    "trusted": true,
+    "watermarks": [
+      "data coverage not clean (gaps or anomalies allowed by operator)"
+    ]
+  }
+]

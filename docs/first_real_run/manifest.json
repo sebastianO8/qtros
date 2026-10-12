@@ -1,0 +1,57 @@
+{
+  "bars_processed": 213904,
+  "config_hash": "ccbdd7365866f0931eecaab00f935b897d703b70d36f197133810f5fec7603e5",
+  "dataset_fingerprint": {
+    "algorithm_version": 1,
+    "column_order": [
+      "ts_utc",
+      "open",
+      "high",
+      "low",
+      "close",
+      "volume",
+      "is_synthetic"
+    ],
+    "content_hash": "47167f4b2cb7cc245be7164310615965650542f763a814ccaa20dd26b0ad4fb1",
+    "first_ts_utc": "2023-01-01T22:30:00.000000+00:00",
+    "instrument_id": "AUDJPY",
+    "last_ts_utc": "2025-12-31T21:55:00.000000+00:00",
+    "row_count": 214089,
+    "source_files": [],
+    "timeframe": "M5"
+  },
+  "experiment_id": "AUDJPY_VWAP_PULLBACK",
+  "feature_set_hash": "767788ac75039175682a241c2d7ee2d76e54a8253b83cbabf06d54c14e3bda98",
+  "fill_count": 0,
+  "git_dirty": false,
+  "git_revision": "65a724b1d65129f689a780636405acbf329d0ddb",
+  "library_versions": {
+    "duckdb": "1.5.5",
+    "numpy": "1.26.4",
+    "polars": "1.43.1",
+    "pydantic": "2.13.4",
+    "pyyaml": "6.0.3",
+    "structlog": "25.5.0"
+  },
+  "manifest_schema_version": 1,
+  "python_version": "3.12.7",
+  "report_hash": "79c22fbd144a272ba4e5f54cf474695ac711e0c21c19f413b8465011a42c489f",
+  "rng_seed": 0,
+  "run_at_utc": "2026-10-12T19:36:08.374973+00:00",
+  "run_hash": "d06f887b7a695cb8b44baabc9221de4edf05305985b0d606139f1031d4afbe5c",
+  "run_id": "20261012-AUDJPY_VWAP_PULLBACK-d06f887b",
+  "sealed_columns": [
+    "atr_14",
+    "close_zscore_50",
+    "true_range",
+    "vwap_session",
+    "vwap_session_index"
+  ],
+  "strategy_id": "vwap_pullback",
+  "strategy_version": "1.0.0",
+  "trade_count": 0,
+  "trusted": true,
+  "watermarks": [
+    "data coverage not clean (gaps or anomalies allowed by operator)"
+  ]
+}
