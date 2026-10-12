@@ -327,10 +327,10 @@ class ConfigLoader:
                 source_instrument=source.instrument_id,
                 backtest_instrument=instrument.instrument_id,
             )
-        if source.timeframe not in strategy.supported_timeframes:
+        if source.stored_timeframe not in strategy.supported_timeframes:
             raise ConfigurationError(
                 "strategy does not support the source timeframe",
-                timeframe=str(source.timeframe),
+                timeframe=str(source.stored_timeframe),
                 supported=sorted(str(t) for t in strategy.supported_timeframes),
             )
         return ResolvedBacktestConfig(

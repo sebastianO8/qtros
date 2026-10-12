@@ -131,7 +131,7 @@ def load_bars(
             not explicitly allowed.
     """
     instrument_id = InstrumentId(resolved.instrument.instrument_id)
-    timeframe = resolved.source.timeframe
+    timeframe = resolved.source.stored_timeframe
     start, end = _window(resolved)
 
     with WarehouseStore(warehouse_path, read_only=True) as store:

@@ -41,7 +41,13 @@ REQUIRED: dict[str, tuple[str, ...]] = {
     "qtros/domain/market.py": ("BarData",),
     "qtros/domain/orders.py": ("RISK_APPROVAL", "ApprovedOrder", "TradeIntent"),
     "qtros/domain/signals.py": ("BarContext", "FeatureRow", "UnknownFeatureError"),
-    "qtros/domain/data_contracts.py": ("SourceSpec", "CoverageReport", "DatasetFingerprint"),
+    "qtros/domain/data_contracts.py": (
+        "SourceSpec",
+        "SourceSpec.aggregate_to",
+        "SourceSpec.stored_timeframe",
+        "CoverageReport",
+        "DatasetFingerprint",
+    ),
     "qtros/data/store.py": ("WarehouseStore",),
     "qtros/data/ingestion.py": ("IngestionService", "OUTPUT_DIR_MARKER"),
     "qtros/data/coverage.py": ("violation_counts", "analyze_coverage"),
@@ -119,6 +125,7 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "export_registry",
         "render_registry_markdown",
     ),
+    "qtros/data/aggregate.py": ("aggregate_bars", "validate_aggregation"),
 }
 
 # Source text that must appear, for changes that add no new top-level symbol.
@@ -143,6 +150,9 @@ REQUIRED_TEXT: dict[str, tuple[tuple[str, str], ...]] = {
     ),
     "qtros/persistence/writer.py": (
         ("ScoredReport", "persistence must not import analytics (sibling layers)"),
+    ),
+    "qtros/data/coverage.py": (
+        ("is_not_null() & (", "null volume is unknown, not a NEGATIVE_VOLUME violation"),
     ),
     "qtros/workflow.py": (
         ("BASE_INPUT_COLUMNS", "bookkeeping columns dropped before the G-4 seal check"),

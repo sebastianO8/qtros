@@ -1,0 +1,30 @@
+# First real-data run: phase1_mvp's strategy, risk, friction, and reporting, pointed at the
+# free HistData.com AUD/JPY history that is actually available (2023-2025).
+# Identical to phase1_mvp except for source_id, date_range, and run_label.
+schema_version: 1
+run_label: histdata-audjpy-2023-2025
+instrument_id: AUDJPY
+source_id: histdata_audjpy_m1
+date_range:
+  start: 2023-01-01
+  end: 2026-01-01
+feature_set_id: baseline_v1
+strategy_ref:
+  strategy_id: vwap_pullback
+  strategy_version: "1.0.0"
+risk_ref: phase1_baseline
+friction_ref: retail_fx_typical
+execution:
+  timing: NEXT_BAR_OPEN
+  path_assumption: ADVERSE_FIRST
+  zero_volume_policy: REJECT_FILL
+  sub_min_lot_policy: REJECT_ORDER
+reporting_ref: constitution_v3_2
+rng_seed: 0
+initial_cash: "100000"
+paths:
+  results_root: ./results
+  warehouse: ./data_lake/warehouse/qtros.duckdb
+runtime:
+  log_level: INFO
+  log_format: json

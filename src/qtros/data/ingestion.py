@@ -31,6 +31,7 @@ import polars as pl
 import structlog
 
 from qtros.data import coverage
+from qtros.data.aggregate import aggregate_bars
 from qtros.domain.data_contracts import (
     DuplicateRecord,
     IngestionReport,
@@ -189,6 +190,7 @@ class IngestionService:
             source_id=str(spec.source_id),
             instrument_id=str(spec.instrument_id),
             timeframe=str(spec.timeframe),
+            stored_timeframe=str(spec.stored_timeframe),
             file_count=len(files),
             total_bytes=total_bytes,
             timestamp_policy=str(spec.timestamp_policy),
@@ -258,13 +260,16 @@ class IngestionService:
             )
 
         accepted, duplicates_dropped = self._deduplicate(accepted, spec)
+        if spec.aggregate_to is not None:
+            # Once, here, at the boundary: nothing downstream sees the raw interval.
+            accepted = aggregate_bars(accepted, source=spec.timeframe, target=spec.aggregate_to)
         accepted = self._attach_metadata(accepted, spec, ingested_at=started_at)
         accepted = accepted.sort(TS_COLUMN)
 
         outcome = self._store.insert_bars(
             accepted,
             instrument_id=spec.instrument_id,
-            timeframe=spec.timeframe,
+            timeframe=spec.stored_timeframe,
             mode=mode,
         )
 
@@ -303,7 +308,7 @@ class IngestionService:
                 ingestion_id=ingestion_id,
                 source_id=spec.source_id,
                 instrument_id=spec.instrument_id,
-                timeframe=spec.timeframe,
+                timeframe=spec.stored_timeframe,
                 mode=mode,
                 files_processed=tuple(path.as_posix() for path in handle.files),
                 rows_read=report.rows_read,
@@ -846,7 +851,7 @@ class IngestionService:
         """
         return frame.with_columns(
             pl.lit(str(spec.instrument_id)).alias("instrument_id"),
-            pl.lit(str(spec.timeframe)).alias("timeframe"),
+            pl.lit(str(spec.stored_timeframe)).alias("timeframe"),
             pl.lit(value=False).alias("is_synthetic"),
             pl.lit(str(spec.source_id)).alias("source_id"),
             pl.lit(ingested_at).alias("ingested_at_utc"),

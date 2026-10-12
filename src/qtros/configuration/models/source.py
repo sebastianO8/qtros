@@ -66,6 +66,8 @@ class DataSourceConfig(QtrosConfig):
         has_header: Whether CSV files carry a header row.
         recursive_glob: Whether the glob descends into subdirectories.
         max_reject_ratio: Fraction of rows that may be rejected before ingestion aborts.
+        aggregate_to: Coarser interval to aggregate into at ingestion, for vendors that
+            publish only fine bars. The warehouse stores the aggregated interval.
     """
 
     source_id: str = Field(min_length=1)
@@ -85,6 +87,7 @@ class DataSourceConfig(QtrosConfig):
     has_header: bool = True
     recursive_glob: bool = False
     max_reject_ratio: StrictDecimal = Decimal("0.001")
+    aggregate_to: Timeframe | None = None
 
     @model_validator(mode="after")
     def _policy_requirements(self) -> DataSourceConfig:
@@ -109,7 +112,18 @@ class DataSourceConfig(QtrosConfig):
             raise ValueError("EMBEDDED_OFFSET sources must not declare a zone or offset")
         if not 0 <= self.max_reject_ratio <= 1:
             raise ValueError("max_reject_ratio must be between 0 and 1")
+        if self.aggregate_to is not None:
+            target, source = self.aggregate_to.duration, self.timeframe.duration
+            if target <= source or target % source:
+                raise ValueError("aggregate_to must be a coarser exact multiple of timeframe")
+            if self.aggregate_to in (Timeframe.D1,):
+                raise ValueError("daily aggregation is not supported at ingestion")
         return self
+
+    @property
+    def stored_timeframe(self) -> Timeframe:
+        """Return the interval the warehouse stores, after any aggregation."""
+        return self.aggregate_to if self.aggregate_to is not None else self.timeframe
 
     def to_spec(self) -> SourceSpec:
         """Build the Layer 0 source description.
@@ -140,4 +154,5 @@ class DataSourceConfig(QtrosConfig):
             has_header=self.has_header,
             recursive_glob=self.recursive_glob,
             max_reject_ratio=float(self.max_reject_ratio),
+            aggregate_to=self.aggregate_to,
         )

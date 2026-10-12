@@ -101,6 +101,10 @@ class SourceSpec:
             ingestion. Getting this wrong shifts the whole series by one bar, which
             produces look-ahead bias that the feature-level prefix-invariance audit
             cannot detect, because the frame itself is already wrong.
+        aggregate_to: Coarser interval to aggregate the raw bars into before storage,
+            or ``None`` to store them as delivered. Used for vendors that only publish
+            one-minute bars. Aggregation happens once, at the ingestion boundary, so
+            nothing downstream ever sees the raw interval.
         max_reject_ratio: Fraction of rows that may be rejected before the ingestion
             aborts. A source that is 40% malformed is a broken download, not a dirty
             file, and importing the good 60% of it hides that.
@@ -123,6 +127,12 @@ class SourceSpec:
     has_header: bool = True
     recursive_glob: bool = False
     max_reject_ratio: float = 0.001
+    aggregate_to: Timeframe | None = None
+
+    @property
+    def stored_timeframe(self) -> Timeframe:
+        """Return the interval the warehouse stores this source's bars at."""
+        return self.aggregate_to if self.aggregate_to is not None else self.timeframe
 
 
 @dataclass(frozen=True, slots=True)

@@ -82,7 +82,12 @@ def _violation_expressions(has_volume: bool) -> Mapping[OhlcViolation, pl.Expr]:
         ),
     }
     if has_volume:
-        expressions[OhlcViolation.NEGATIVE_VOLUME] = pl.col(VOLUME_COLUMN) < 0.0
+        # Null volume means "not reported" and is legitimate (the vendor supplies none).
+        # A bare `volume < 0` evaluates to null on such rows, and the mask's
+        # fill_null(True) backstop would then reject every bar of a volume-less source.
+        expressions[OhlcViolation.NEGATIVE_VOLUME] = pl.col(VOLUME_COLUMN).is_not_null() & (
+            pl.col(VOLUME_COLUMN) < 0.0
+        )
     return expressions
 
 
