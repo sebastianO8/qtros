@@ -46,6 +46,8 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "SourceSpec.aggregate_to",
         "SourceSpec.stored_timeframe",
         "CoverageReport",
+        "CoverageReport.closed_market_bars",
+        "CoverageReport.missing_bar_fraction",
         "DatasetFingerprint",
     ),
     "qtros/data/store.py": ("WarehouseStore",),
@@ -117,7 +119,13 @@ REQUIRED: dict[str, tuple[str, ...]] = {
     "qtros/persistence/serialize.py": ("to_jsonable",),
     # Phase 1 finish — CLI, workflow, render, registry
     "qtros/cli.py": ("app", "validate", "run", "ingest", "registry"),
-    "qtros/workflow.py": ("execute", "load_bars", "ingest_source", "BASE_INPUT_COLUMNS"),
+    "qtros/workflow.py": (
+        "execute",
+        "load_bars",
+        "ingest_source",
+        "BASE_INPUT_COLUMNS",
+        "coverage_summary",
+    ),
     "qtros/logging_setup.py": ("configure_logging", "_stderr_logger"),
     "qtros/analytics/render/__init__.py": ("render_report", "equity_curve_svg"),
     "qtros/persistence/registry.py": (
@@ -126,6 +134,13 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "render_registry_markdown",
     ),
     "qtros/data/aggregate.py": ("aggregate_bars", "validate_aggregation"),
+    "qtros/features/transforms/adx.py": ("AverageDirectionalIndex._build",),
+    "qtros/features/transforms/session_range.py": ("SessionRange._build", "SessionRange.warmup"),
+    "qtros/alpha/strategies/audjpy_asian_sweep.py": (
+        "AudJpyAsianSweep",
+        "AudJpyAsianSweep.evaluate",
+        "in_window",
+    ),
 }
 
 # Source text that must appear, for changes that add no new top-level symbol.

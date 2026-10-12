@@ -87,6 +87,15 @@
 {% if rejections %}<table><tr><th>Code</th><th class="num">Count</th></tr>{% for code, n in rejections %}<tr><td>{{ code }}</td><td class="num">{{ n }}</td></tr>{% endfor %}</table>
 {% else %}<div class="sub">none</div>{% endif %}
 
+{% if coverage %}
+<h2>Data coverage</h2>
+<table>
+<tr><th class="num">Bars</th><th class="num">Unexplained gaps</th><th class="num">Missing bars</th><th class="num">Missing fraction</th><th class="num">Tolerance</th><th class="num">Closed-market bars</th><th>Accepted without watermark</th></tr>
+<tr><td class="num">{{ coverage.rows }}</td><td class="num">{{ coverage.unexpected_gaps }}</td><td class="num">{{ coverage.unexpected_missing_bars }}</td><td class="num">{{ coverage.missing_bar_fraction }}</td><td class="num">{{ coverage.max_missing_bar_fraction if coverage.max_missing_bar_fraction is not none else "none" }}</td><td class="num">{{ coverage.closed_market_bars }}</td><td class="{{ 'PASS' if coverage.accepted_without_watermark else 'FAIL' }}">{{ "yes" if coverage.accepted_without_watermark else "no" }}</td></tr>
+</table>
+<div class="sub">Gaps by kind: {% for kind, n in coverage.gaps_by_kind.items() %}{{ kind }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}. Closed-market bars are bars stamped while the calendar says the market is closed; they are flagged, not removed. Full detail in <code>coverage.json</code>.</div>
+{% endif %}
+
 <h2>Reconciliation (C-10)</h2>
 <div class="sub {{ 'PASS' if reconciliation.passed else 'FAIL' }}">{{ reconciliation_summary }}</div>
 {% if open_trade %}<div class="sub">Position open at end of run: trade <code>{{ open_trade.trade_id }}</code>, {{ open_trade.direction }} {{ open_trade.entry_quantity }} — excluded from every metric above.</div>{% endif %}

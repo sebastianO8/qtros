@@ -1,4 +1,7 @@
 # ARCH-002 §4.6 + G-1 (max_lot, max_notional_pct; ASS-008) + G-2 (mark-to-market basis; ASS-009).
+# max_notional_pct raised 300 -> 1000 (3x -> 10x closed equity) by PI ruling 2026-10-12, set
+# BEFORE the first audjpy_asian_sweep run so the limit is not fitted to its results. With 1%
+# risk per trade, 10x admits stops at least ~0.1% of price away (3x required ~0.33%).
 schema_version: 1
 risk_limits_id: phase1_baseline
 max_drawdown_pct: "10"
@@ -8,5 +11,5 @@ atr_stop_multiple: "2"
 atr_lookback_bars: 14
 max_concurrent_positions: 1
 max_lot: "5"
-max_notional_pct: "300"
+max_notional_pct: "1000"
 on_limit_breach: HALT_RUN

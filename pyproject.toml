@@ -22,7 +22,7 @@ description = "Quantitative Trading Research OS — solo-PI research and validat
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [{ name = "Principal Investigator" }]
+authors = [{ name = "Sebastian" }]
 
 # Upper bounds are deliberate. Polars and DuckDB both ship breaking changes on a
 # fast cadence; Directive 10 (run provenance) is meaningless if the data layer
@@ -116,7 +116,11 @@ docstring-code-format = true
 # Mypy — strict everywhere, strictest in domain/
 #-------------------------------------------------------------------------------
 [tool.mypy]
-python_version = "3.11"
+# Checked against the interpreter the project is developed and tested on. uv.lock pins
+# numpy 2.5 on Python >= 3.12, whose stubs use 3.12-only syntax and cannot be parsed in
+# 3.11 mode. ruff (target-version py311) still guards 3.11-compatible syntax; whether to
+# raise requires-python to 3.12 is an open PI decision.
+python_version = "3.12"
 strict = true
 warn_unreachable = true            # dead branches in risk-limit logic are dangerous
 warn_return_any = true
@@ -221,7 +225,7 @@ name = "Strategies are mutually independent (protects the Phase 2 correlation ch
 type = "independence"
 modules = [
     "qtros.alpha.strategies.vwap_pullback",
-    # audjpy_asian_sweep: add here when the Phase 2 strategy module lands
+    "qtros.alpha.strategies.audjpy_asian_sweep",
 ]
 
 [[tool.importlinter.contracts]]

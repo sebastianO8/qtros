@@ -9,6 +9,7 @@ is the correct failure, but only if the cause is documented where someone will r
 from __future__ import annotations
 
 from qtros.features.transforms._control import CenteredMeanControl
+from qtros.features.transforms.adx import AverageDirectionalIndex
 from qtros.features.transforms.atr import (
     TRUE_RANGE_COLUMN,
     AtrMethod,
@@ -22,6 +23,7 @@ from qtros.features.transforms.base import (
     registered_transforms,
     safe_divide,
 )
+from qtros.features.transforms.session_range import SessionRange
 from qtros.features.transforms.vwap import AnchoredVwap
 from qtros.features.transforms.zscore import RollingZScore
 
@@ -30,9 +32,11 @@ __all__ = [
     "TRUE_RANGE_COLUMN",
     "AnchoredVwap",
     "AtrMethod",
+    "AverageDirectionalIndex",
     "AverageTrueRange",
     "CenteredMeanControl",
     "RollingZScore",
+    "SessionRange",
     "TrueRange",
     "build_transform",
     "register_transform",

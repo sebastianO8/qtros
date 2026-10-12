@@ -107,6 +107,7 @@ def render_report(
     run_id: str,
     hashes: Mapping[str, str],
     title: str | None = None,
+    coverage: Mapping[str, object] | None = None,
 ) -> str:
     """Render the HTML report.
 
@@ -116,6 +117,8 @@ def render_report(
         run_id: Run identifier for the header.
         hashes: ``run_hash``, ``report_hash``, ``config_hash`` for the footer.
         title: Page title. Defaults to the strategy and run id.
+        coverage: Data-coverage facts for the run's bar range, as written to
+            ``coverage.json``. Omitted from the page when ``None``.
 
     Returns:
         A complete HTML document.
@@ -153,6 +156,7 @@ def render_report(
         config_hash=hashes.get("config_hash", ""),
         feature_set_hash=result.feature_set_hash,
         scored_at=report.scored_at_utc.isoformat(),
+        coverage=coverage,
     )
 
 

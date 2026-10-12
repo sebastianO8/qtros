@@ -13,6 +13,7 @@ means the definition of "impossible bar" exists exactly once.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import TYPE_CHECKING, Final
 
 import polars as pl
@@ -52,6 +53,10 @@ of them helps nobody. The full count is always reported even when the detail is 
 # --------------------------------------------------------------------------------------
 # Shared predicates
 # --------------------------------------------------------------------------------------
+
+
+_CLOSED_MARKET_SAMPLES: Final[int] = 20
+"""Closed-market timestamps kept on the report for diagnosis."""
 
 
 def _violation_expressions(has_volume: bool) -> Mapping[OhlcViolation, pl.Expr]:
@@ -393,6 +398,12 @@ def analyze_coverage(
         int(frame.get_column(SYNTHETIC_COLUMN).sum()) if SYNTHETIC_COLUMN in frame.columns else 0
     )
 
+    closed: list[datetime] = (
+        [ts for ts in timestamps.to_list() if not calendar.is_open_at(ts)]
+        if calendar is not None
+        else []
+    )
+
     report = CoverageReport(
         instrument_id=instrument_id,
         timeframe=timeframe,
@@ -413,6 +424,8 @@ def analyze_coverage(
         synthetic_bars=synthetic_bars,
         null_volume_bars=null_volume,
         analyzed_at_utc=datetime.now(UTC),
+        closed_market_bars=len(closed),
+        closed_market_samples=tuple(closed[:_CLOSED_MARKET_SAMPLES]),
     )
 
     _LOGGER.info(
@@ -426,6 +439,8 @@ def analyze_coverage(
         ohlc_violations=len(report.ohlc_violations),
         out_of_order=report.out_of_order_rows,
         calendar_supplied=calendar is not None,
+        missing_bar_fraction=str(report.missing_bar_fraction.quantize(Decimal("0.000001"))),
+        closed_market_bars=report.closed_market_bars,
         is_clean=report.is_clean,
     )
     return report

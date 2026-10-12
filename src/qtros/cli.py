@@ -49,7 +49,7 @@ def _resolve_target(target: str, config_root: Path | None) -> tuple[Path, str]:
 
 def _load(target: str, config_root: Path | None) -> ResolvedBacktestConfig:
     """Resolve a backtest, importing the strategy library so registrations exist."""
-    import qtros.alpha.strategies.vwap_pullback  # noqa: F401 - registration side effect
+    import qtros.alpha.strategies  # noqa: F401 - registers every strategy
 
     root, backtest_id = _resolve_target(target, config_root)
     return ConfigLoader(root).load_backtest(backtest_id)
@@ -84,7 +84,13 @@ def validate(
         return
     hashes = resolved.hashes()
     typer.echo(f"backtest      {resolved.backtest.run_label}")
-    typer.echo(f"instrument    {resolved.instrument.instrument_id} ({resolved.source.timeframe})")
+    source = resolved.source
+    interval = (
+        f"{source.timeframe} -> {source.stored_timeframe} at ingestion"
+        if source.aggregate_to is not None
+        else str(source.timeframe)
+    )
+    typer.echo(f"instrument    {resolved.instrument.instrument_id} ({interval})")
     typer.echo(
         f"strategy      {resolved.strategy.strategy_id} {resolved.strategy.strategy_version}"
     )

@@ -68,6 +68,10 @@ class DataSourceConfig(QtrosConfig):
         max_reject_ratio: Fraction of rows that may be rejected before ingestion aborts.
         aggregate_to: Coarser interval to aggregate into at ingestion, for vendors that
             publish only fine bars. The warehouse stores the aggregated interval.
+        max_missing_bar_fraction: Largest share of expected bars that may be missing inside
+            unexplained gaps before a run is refused. ``None`` (the default) tolerates no
+            gaps at all. Never excuses duplicates, impossible bars, or out-of-order rows.
+            Run-affecting: it changes which data a run accepts.
     """
 
     source_id: str = Field(min_length=1)
@@ -88,6 +92,7 @@ class DataSourceConfig(QtrosConfig):
     recursive_glob: bool = False
     max_reject_ratio: StrictDecimal = Decimal("0.001")
     aggregate_to: Timeframe | None = None
+    max_missing_bar_fraction: StrictDecimal | None = None
 
     @model_validator(mode="after")
     def _policy_requirements(self) -> DataSourceConfig:
@@ -112,6 +117,10 @@ class DataSourceConfig(QtrosConfig):
             raise ValueError("EMBEDDED_OFFSET sources must not declare a zone or offset")
         if not 0 <= self.max_reject_ratio <= 1:
             raise ValueError("max_reject_ratio must be between 0 and 1")
+        if self.max_missing_bar_fraction is not None and not (
+            0 <= self.max_missing_bar_fraction < 1
+        ):
+            raise ValueError("max_missing_bar_fraction must be in [0, 1)")
         if self.aggregate_to is not None:
             target, source = self.aggregate_to.duration, self.timeframe.duration
             if target <= source or target % source:

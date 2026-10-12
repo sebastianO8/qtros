@@ -17,8 +17,10 @@ Two decisions live here rather than in the layers below:
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, time
+from decimal import Decimal
 from typing import TYPE_CHECKING, Final
 
 import structlog
@@ -71,11 +73,20 @@ class LoadedBars:
         frame: Base columns only, ascending by timestamp.
         fingerprint: Content hash of the loaded range (Directive 10).
         coverage: Quality assessment of the range.
+        accepted: Whether coverage met the source's declared policy. ``False`` only when
+            the operator allowed an unacceptable range, and the run is then watermarked.
+        tolerance: The source's declared missing-bar tolerance, if any.
     """
 
     frame: pl.DataFrame
     fingerprint: DatasetFingerprint
     coverage: CoverageReport
+    accepted: bool = True
+    tolerance: Decimal | None = None
+
+    def summary(self) -> dict[str, object]:
+        """Return the coverage facts written to ``coverage.json`` and the HTML report."""
+        return coverage_summary(self.coverage, tolerance=self.tolerance, accepted=self.accepted)
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +112,56 @@ class RunOutcome:
     html: str | None
 
 
+_FRACTION_DISPLAY: Final[Decimal] = Decimal("0.000001")
+_LARGEST_GAPS_REPORTED: Final[int] = 20
+
+
+def coverage_summary(
+    coverage: CoverageReport, *, tolerance: Decimal | None, accepted: bool
+) -> dict[str, object]:
+    """Return a JSON-ready description of a range's coverage and the policy applied.
+
+    Args:
+        coverage: The assessment.
+        tolerance: Declared missing-bar tolerance, if any.
+        accepted: Whether the range met the policy.
+
+    Returns:
+        Counts, fractions as exact strings, the largest unexplained gaps, and the
+        closed-market bars found. Everything the gate decided on is here, so a reader can
+        check the decision without re-running it.
+    """
+    by_kind: dict[str, int] = {}
+    for gap in coverage.gaps:
+        by_kind[str(gap.kind)] = by_kind.get(str(gap.kind), 0) + 1
+    largest = sorted(coverage.unexpected_gaps, key=lambda g: g.duration, reverse=True)
+    return {
+        "rows": coverage.row_count,
+        "first_ts_utc": coverage.first_ts_utc.isoformat() if coverage.first_ts_utc else None,
+        "last_ts_utc": coverage.last_ts_utc.isoformat() if coverage.last_ts_utc else None,
+        "gaps_by_kind": dict(sorted(by_kind.items())),
+        "unexpected_gaps": len(coverage.unexpected_gaps),
+        "unexpected_missing_bars": coverage.unexpected_missing_bars,
+        "missing_bar_fraction": str(coverage.missing_bar_fraction.quantize(_FRACTION_DISPLAY)),
+        "max_missing_bar_fraction": str(tolerance) if tolerance is not None else None,
+        "duplicates": len(coverage.duplicates),
+        "ohlc_violations": len(coverage.ohlc_violations),
+        "out_of_order_rows": coverage.out_of_order_rows,
+        "closed_market_bars": coverage.closed_market_bars,
+        "closed_market_samples": [ts.isoformat() for ts in coverage.closed_market_samples],
+        "accepted_without_watermark": accepted,
+        "largest_unexpected_gaps": [
+            {
+                "start_ts_utc": gap.start_ts_utc.isoformat(),
+                "end_ts_utc": gap.end_ts_utc.isoformat(),
+                "minutes": int(gap.duration.total_seconds() // 60),
+                "missing_bars": gap.missing_bars,
+            }
+            for gap in largest[:_LARGEST_GAPS_REPORTED]
+        ],
+    }
+
+
 def _window(resolved: ResolvedBacktestConfig) -> tuple[datetime, datetime]:
     """Return the half-open UTC window the date range describes."""
     start = datetime.combine(resolved.backtest.date_range.start, time.min, tzinfo=UTC)
@@ -121,14 +182,17 @@ def load_bars(
         resolved: The flattened configuration.
         warehouse_path: DuckDB file.
         calendar: For gap attribution.
-        allow_gaps: Proceed on unclean coverage. The run is watermarked.
+        allow_gaps: Proceed on coverage that fails the source's policy. The run is
+            watermarked.
 
     Returns:
         The loaded bars.
 
     Raises:
-        CoverageError: If nothing is stored for the window, or coverage is unclean and
-            not explicitly allowed.
+        CoverageError: If nothing is stored for the window, or coverage fails the policy
+            and was not explicitly allowed. The policy: no duplicates, impossible bars, or
+            out-of-order rows ever; unexplained gaps only within the source's declared
+            ``max_missing_bar_fraction`` (none, if undeclared).
     """
     instrument_id = InstrumentId(resolved.instrument.instrument_id)
     timeframe = resolved.source.stored_timeframe
@@ -151,13 +215,20 @@ def load_bars(
     coverage = analyze_coverage(
         frame, instrument_id=instrument_id, timeframe=timeframe, calendar=calendar
     )
-    if not coverage.is_clean:
-        detail = {
-            "unexpected_gaps": len(coverage.unexpected_gaps),
-            "duplicates": len(coverage.duplicates),
-            "ohlc_violations": len(coverage.ohlc_violations),
-            "out_of_order_rows": coverage.out_of_order_rows,
-        }
+    tolerance: Decimal | None = resolved.source.max_missing_bar_fraction
+    gaps_acceptable: bool = not coverage.unexpected_gaps or (
+        tolerance is not None and coverage.missing_bar_fraction <= tolerance
+    )
+    accepted: bool = gaps_acceptable and not coverage.has_structural_problems
+    detail: dict[str, object] = {
+        "unexpected_gaps": len(coverage.unexpected_gaps),
+        "missing_bar_fraction": str(coverage.missing_bar_fraction.quantize(_FRACTION_DISPLAY)),
+        "max_missing_bar_fraction": str(tolerance) if tolerance is not None else "none",
+        "duplicates": len(coverage.duplicates),
+        "ohlc_violations": len(coverage.ohlc_violations),
+        "out_of_order_rows": coverage.out_of_order_rows,
+    }
+    if not accepted:
         if not allow_gaps:
             raise CoverageError(
                 "stored bars do not meet coverage requirements; re-run with gaps allowed "
@@ -165,6 +236,16 @@ def load_bars(
                 **detail,
             )
         _LOGGER.warning("workflow.coverage_unclean_allowed", **detail)
+    elif coverage.unexpected_gaps:
+        # Within the declared tolerance: accepted without a watermark, but never silently.
+        _LOGGER.warning("workflow.coverage_gaps_within_tolerance", **detail)
+    if coverage.closed_market_bars:
+        _LOGGER.warning(
+            "workflow.closed_market_bars",
+            count=coverage.closed_market_bars,
+            first=[ts.isoformat() for ts in coverage.closed_market_samples[:5]],
+            note="bars stamped while the calendar says closed: check time zone and holidays",
+        )
 
     fingerprint = compute_fingerprint(frame, instrument_id=instrument_id, timeframe=timeframe)
     _LOGGER.info(
@@ -173,10 +254,14 @@ def load_bars(
         first=str(coverage.first_ts_utc),
         last=str(coverage.last_ts_utc),
         fingerprint=fingerprint.short_hash,
-        clean=coverage.is_clean,
+        accepted=accepted,
     )
     return LoadedBars(
-        frame=frame.select(BASE_INPUT_COLUMNS), fingerprint=fingerprint, coverage=coverage
+        frame=frame.select(BASE_INPUT_COLUMNS),
+        fingerprint=fingerprint,
+        coverage=coverage,
+        accepted=accepted,
+        tolerance=tolerance,
     )
 
 
@@ -201,7 +286,7 @@ def execute(
         repo_root: Repository to stamp the git revision from; ``None`` skips the lookup.
         write: Persist artifacts.
         render: Render ``report.html``.
-        allow_gaps: Proceed on unclean coverage, under a watermark.
+        allow_gaps: Proceed on coverage that fails the source's policy, under a watermark.
         run_at_utc: Override the run timestamp for reproducible identifiers.
         registry: Strategy registry.
 
@@ -217,7 +302,8 @@ def execute(
         resolved, warehouse_path=warehouse_path, calendar=calendar, allow_gaps=allow_gaps
     )
     components, result = run_from_config(resolved, loaded.frame, registry=registry)
-    extra = (WATERMARK_COVERAGE,) if not loaded.coverage.is_clean else ()
+    extra = (WATERMARK_COVERAGE,) if not loaded.accepted else ()
+    coverage = loaded.summary()
     report = analyze(
         result, resolved, components.calendar, scored_at_utc=run_at, extra_watermarks=extra
     )
@@ -234,6 +320,7 @@ def execute(
                 "report_hash": components.hashes.report_hash,
                 "config_hash": components.hashes.config_hash,
             },
+            coverage=coverage,
         )
 
     written: WrittenRun | None = None
@@ -245,7 +332,10 @@ def execute(
             dataset_fingerprint=loaded.fingerprint,
             run_at_utc=run_at,
             lookup_git=repo_root is not None,
-            extra_text_files={"report.html": html} if html is not None else {},
+            extra_text_files={
+                "coverage.json": json.dumps(coverage, indent=2, sort_keys=True) + "\n",
+                **({"report.html": html} if html is not None else {}),
+            },
         )
 
     _LOGGER.info(

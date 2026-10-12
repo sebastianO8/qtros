@@ -25,7 +25,12 @@ sessions:
     close_local: "17:00:00"
     timezone: America/New_York
     weekdays: [0, 1, 2, 3, 4]
+# FX has no exchange holidays. These are the two days most liquidity providers close, for
+# every year of data the project uses (2023-2025; PI ruling 2026-10-12). Thin trading can
+# still print on them; coverage reports such bars as closed-market bars rather than hiding them.
 holidays:
+  - 2023-01-01
+  - 2023-12-25
   - 2024-01-01
   - 2024-12-25
   - 2025-01-01

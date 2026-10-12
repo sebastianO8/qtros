@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from qtros.domain.enums import (
@@ -293,6 +294,11 @@ class CoverageReport:
         synthetic_bars: Bars flagged as gap-fill rather than observed.
         null_volume_bars: Bars with no volume figure at all.
         analyzed_at_utc: When the assessment ran.
+        closed_market_bars: Bars stamped while the session calendar says the market is
+            closed. Flagged, never repaired or dropped: a wrong time-zone declaration
+            produces them, and so does thin trading on a declared holiday, and only a human
+            can tell which. Zero when no calendar was supplied.
+        closed_market_samples: Up to the first twenty such timestamps, for diagnosis.
     """
 
     instrument_id: InstrumentId
@@ -309,6 +315,34 @@ class CoverageReport:
     synthetic_bars: int = 0
     null_volume_bars: int = 0
     analyzed_at_utc: datetime | None = None
+    closed_market_bars: int = 0
+    closed_market_samples: tuple[datetime, ...] = field(default_factory=tuple)
+
+    @property
+    def unexpected_missing_bars(self) -> int:
+        """Return how many bars are missing inside gaps the calendar cannot explain."""
+        return sum(gap.missing_bars for gap in self.unexpected_gaps)
+
+    @property
+    def missing_bar_fraction(self) -> Decimal:
+        """Return missing bars as a fraction of the bars that should exist.
+
+        Returns:
+            ``unexpected_missing_bars / (row_count + unexpected_missing_bars)``, exact, or
+            zero for an empty series.
+        """
+        missing: int = self.unexpected_missing_bars
+        expected: int = self.row_count + missing
+        return Decimal(missing) / Decimal(expected) if expected else Decimal(0)
+
+    @property
+    def has_structural_problems(self) -> bool:
+        """Return whether the series has defects no tolerance may excuse.
+
+        Duplicates, impossible bars, and out-of-order rows mean the data is wrong, not
+        merely incomplete. Gap tolerances never apply to them.
+        """
+        return bool(self.duplicates or self.ohlc_violations or self.out_of_order_rows)
 
     @property
     def unexpected_gaps(self) -> tuple[GapRecord, ...]:

@@ -13,9 +13,12 @@ A strategy therefore cannot construct something executable, and the broker canno
 something unapproved. Both halves hold at type-check time.
 
 The honest limit: Python has no private constructors, so a determined caller could import
-the sentinel. The guarantee is the *type signature* plus an import-linter contract
-restricting who may import this module's approval symbol. That combination fails the
-build rather than failing silently, which is the property that matters.
+the sentinel. The guarantee is the *type signature* plus a test,
+``tests/test_risk.py::TestApprovalTokenIsConfinedToRisk``, that walks the source tree and
+fails if anything outside ``qtros.risk`` uses the approval symbol. Import-linter cannot do
+this: it restricts whole modules, and every layer legitimately imports this module for
+:class:`TradeIntent`. The test fails the build rather than failing silently, which is the
+property that matters.
 """
 
 from __future__ import annotations
@@ -51,8 +54,9 @@ class _ApprovalSentinel:
 RISK_APPROVAL: Final[_ApprovalSentinel] = _ApprovalSentinel()
 """The single approval sentinel.
 
-Only ``qtros.risk`` may import this. Enforced by an import-linter contract, because a
-convention that anyone can quietly ignore is not a control.
+Only ``qtros.risk`` may import this. Enforced by
+``tests/test_risk.py::TestApprovalTokenIsConfinedToRisk``, because a convention that anyone
+can quietly ignore is not a control.
 """
 
 

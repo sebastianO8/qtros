@@ -1,0 +1,42 @@
+# Port of the Cycle 1 Asian-session sweep (July 2026 script) into QTROS. See the module
+# docstring of qtros.alpha.strategies.audjpy_asian_sweep for every deviation from the script.
+#
+# IN-SAMPLE WARNING: the idea and these parameters were developed on 2023-2025 AUD/JPY data,
+# the same data the first QTROS run uses. Any result on that period is in-sample and is not
+# evidence of an edge. Out-of-sample and walk-forward testing are still unbuilt.
+schema_version: 1
+strategy_id: audjpy_asian_sweep
+strategy_version: "1.0.0"
+experiment_id: AUDJPY_ASIAN_SWEEP
+mechanism_hypothesis: >-
+  During the Asian session (19:00-04:00 New York) AUD/JPY trades in a range with stops
+  resting just beyond both edges. After the session, a move through one edge that fails and
+  closes back inside the range has run those stops without finding follow-through, so price
+  tends to reverse back across the range during the London and New York sessions.
+supported_timeframes: [M5]
+parameters:
+  timezone: America/New_York
+  range_start: "19:00"
+  range_end: "04:00"
+  trade_window_start: "04:00"
+  trade_window_end: "17:00"
+  bar_minutes: 5
+  session_id_column: asian_session_id
+  range_high_column: asian_range_high
+  range_low_column: asian_range_low
+  bars_since_end_column: asian_bars_since_end
+  sweep_low_column: asian_sweep_low
+  sweep_high_column: asian_sweep_high
+  atr_column: atr_wilder_14
+  adx_column: adx_14
+  min_stop_atr: "0.8"
+  max_stop_atr: "2.5"
+  rr_multiple: "2"
+  cooldown_bars: 5
+  adx_min: "15"
+  adx_max: "40"
+  freshness_bars: 90
+significance:
+  tier: STANDARD
+  min_trades: 400
+declared_at_utc: "2026-10-12T00:00:00+00:00"

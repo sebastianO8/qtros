@@ -33,3 +33,9 @@ csv_separator: ";"
 has_header: false
 recursive_glob: false
 max_reject_ratio: "0.001"
+# Coverage tolerance (PI ruling 2026-10-12): up to 5% of expected bars may be missing inside
+# unexplained gaps before a run is refused. This was chosen AFTER the first run measured 4.4%
+# missing on this data, so it is fitted to this data set; it is recorded here so that is
+# visible. Gaps are still counted, logged, and written to results/<run_id>/coverage.json.
+# Duplicates, impossible bars, and out-of-order rows are never tolerated.
+max_missing_bar_fraction: "0.05"

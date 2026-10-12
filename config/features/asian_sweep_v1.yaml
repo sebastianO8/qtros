@@ -1,0 +1,25 @@
+# Feature set for audjpy_asian_sweep 1.0.0. Wilder smoothing for ATR and ADX, matching the
+# Cycle 1 script and TradingView's ta.atr / ta.dmi.
+schema_version: 1
+feature_set_id: asian_sweep_v1
+transforms:
+  - transform: true_range
+  - transform: atr
+    parameters:
+      period: 14
+      method: WILDER
+      output_column: atr_wilder_14
+  - transform: adx
+    parameters:
+      period: 14
+      smoothing: 14
+      output_column: adx_14
+  - transform: session_range
+    parameters:
+      timezone: America/New_York
+      range_start: "19:00"
+      range_end: "04:00"
+      prefix: asian
+lag_policy: DEFER_TO_ENGINE
+audit_probe_count: 25
+audit_seed: 0
