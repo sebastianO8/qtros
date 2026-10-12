@@ -5,4 +5,5 @@ Do not edit by hand: decisions and mechanism notes live in `config/registry/deci
 
 | Run | Experiment | Strategy | Trades | Sharpe | PF | Max DD % | Net PnL | Result | Outlier Check | Trusted | Decision |
 |---|---|---|---:|---:|---:|---:|---:|---|---|---|---|
+| `20261012-AUDJPY_ASIAN_SWEEP-42af60d1` | AUDJPY_ASIAN_SWEEP | audjpy_asian_sweep 1.0.0 | 22 | -0.563306 | 0.713958 | 10.373225 | -4794.46 | FAIL | CONCENTRATED (needs mechanism_note) | yes ! | - |
 | `20261012-AUDJPY_VWAP_PULLBACK-d06f887b` | AUDJPY_VWAP_PULLBACK | vwap_pullback 1.0.0 | 0 | n/a | n/a | 0.000000 | 0 | INSUFFICIENT_SAMPLE | n/a | yes ! | - |

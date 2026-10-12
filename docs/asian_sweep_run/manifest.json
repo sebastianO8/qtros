@@ -1,0 +1,61 @@
+{
+  "bars_processed": 213949,
+  "config_hash": "efe17e5e87c8c08db029ae8856145c5c90c511be836fc32c0d52af85dc37b7f6",
+  "dataset_fingerprint": {
+    "algorithm_version": 1,
+    "column_order": [
+      "ts_utc",
+      "open",
+      "high",
+      "low",
+      "close",
+      "volume",
+      "is_synthetic"
+    ],
+    "content_hash": "47167f4b2cb7cc245be7164310615965650542f763a814ccaa20dd26b0ad4fb1",
+    "first_ts_utc": "2023-01-01T22:30:00.000000+00:00",
+    "instrument_id": "AUDJPY",
+    "last_ts_utc": "2025-12-31T21:55:00.000000+00:00",
+    "row_count": 214089,
+    "source_files": [],
+    "timeframe": "M5"
+  },
+  "experiment_id": "AUDJPY_ASIAN_SWEEP",
+  "feature_set_hash": "c45695b42bc80525eb587cb35e5d71697d561a0326adca6110f5be7e94e4350f",
+  "fill_count": 44,
+  "git_dirty": false,
+  "git_revision": "1c267d32f79279bfb24fe1727eb11240ae333145",
+  "library_versions": {
+    "duckdb": "1.5.6",
+    "numpy": "2.5.4",
+    "polars": "1.44.2",
+    "pydantic": "2.14.1",
+    "pyyaml": "6.0.3",
+    "structlog": "25.5.0"
+  },
+  "manifest_schema_version": 1,
+  "python_version": "3.12.7",
+  "report_hash": "79c22fbd144a272ba4e5f54cf474695ac711e0c21c19f413b8465011a42c489f",
+  "rng_seed": 0,
+  "run_at_utc": "2026-10-12T21:53:36.766554+00:00",
+  "run_hash": "42af60d170b87cd2de4a88c705953872751aa00bfbfe63a8aefc602016cda024",
+  "run_id": "20261012-AUDJPY_ASIAN_SWEEP-42af60d1",
+  "sealed_columns": [
+    "adx_14",
+    "asian_bars_since_end",
+    "asian_range_high",
+    "asian_range_low",
+    "asian_session_id",
+    "asian_sweep_high",
+    "asian_sweep_low",
+    "atr_wilder_14",
+    "true_range"
+  ],
+  "strategy_id": "audjpy_asian_sweep",
+  "strategy_version": "1.0.0",
+  "trade_count": 22,
+  "trusted": true,
+  "watermarks": [
+    "risk halt active at end of run"
+  ]
+}

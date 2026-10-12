@@ -1,0 +1,51 @@
+{
+  "audited_at_utc": "2026-10-12T21:53:46.641345+00:00",
+  "columns_checked": [
+    "true_range",
+    "adx_14",
+    "asian_session_id",
+    "asian_range_high",
+    "asian_range_low",
+    "asian_bars_since_end",
+    "asian_sweep_low",
+    "asian_sweep_high",
+    "atr_wilder_14"
+  ],
+  "findings": [],
+  "passed": true,
+  "probe_indices": [
+    140,
+    10753,
+    25000,
+    36650,
+    36774,
+    57404,
+    68014,
+    74023,
+    79652,
+    94001,
+    101130,
+    106292,
+    110391,
+    125078,
+    127524,
+    132441,
+    134168,
+    153071,
+    162242,
+    198270,
+    198834,
+    205609,
+    209699,
+    214087,
+    214088
+  ],
+  "rows_in_frame": 214089,
+  "tolerance": 0.0,
+  "transforms_audited": [
+    "true_range",
+    "adx",
+    "session_range",
+    "atr"
+  ]
+}

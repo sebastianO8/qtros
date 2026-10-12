@@ -1,0 +1,12 @@
+[
+  {
+    "bar_index": 15965,
+    "detail": "adverse-first intrabar drawdown 10643.81 (10.0201%) reached the 10% limit; new entries blocked (HALT_RUN)",
+    "drawdown": "10643.81",
+    "drawdown_fraction": "0.1002011401519273718929466703",
+    "extreme_equity": "95580.63",
+    "kind": "DRAWDOWN_HALT",
+    "peak_equity": "106224.44",
+    "ts_utc": "2023-03-31T18:00:00.000000+00:00"
+  }
+]

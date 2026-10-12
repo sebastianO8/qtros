@@ -6,16 +6,18 @@ rule in the past, what would have happened?* It is designed to make the common w
 backtests produce believable but wrong answers either impossible or loud.
 
 It currently trades one currency pair (Australian dollar / Japanese yen, AUD/JPY) on
-five-minute bars, with one reference strategy.
+five-minute bars, with two strategies: a reference strategy, and a port of the
+Asian-session strategy I first tested as a single script.
 
 **Status in one paragraph.** The full pipeline works end to end: raw vendor files are
 loaded, checked for quality, turned into indicators, run through a simulated broker
 and a risk engine, reconciled exactly, scored against written pass/fail rules,
-and saved as a reproducible report. It has been run once on three years of real
-AUD/JPY data. **That run produced zero trades**, because the free data I have contains
-no trading volume and the reference strategy depends on a volume-weighted price, which
-the system refuses to make up. No performance results exist yet. Details are under
-[Current status](#current-status).
+and saved as a reproducible report. It has been run twice on three years of real
+AUD/JPY data. The reference strategy made **no trades**, because the free data has no
+trading volume and that strategy needs it. The Asian-session strategy made **22 trades,
+lost 4.8%, and was stopped by the 10% drawdown limit after three months**. It failed
+the pass/fail rules. Neither run is evidence that a strategy works or doesn't. Details
+are under [Current status](#current-status).
 
 ---
 
@@ -115,10 +117,15 @@ still allowed, so an open position can always be closed.
 - **Position size limits reject, never shrink.** A hard maximum lot size and a cap on
   total exposure as a multiple of the account. An order over either limit is refused,
   not resized. `risk/limits.py` → `MaxLotRule`, `MaxNotionalExposureRule`.
-- **Bad data stops the run.** Missing bars, duplicates, or impossible prices refuse
-  the run unless the operator overrides it. An override stamps the result as not
-  publishable. Ambiguous daylight-saving timestamps raise an error instead of being
-  guessed. `workflow.py` → `load_bars`; `domain/timekeeping/calendar.py` → `localize`.
+- **Bad data stops the run.** Duplicates, impossible prices, or out-of-order bars
+  always refuse the run. Missing bars refuse it unless the data source declares a
+  tolerance and the run stays within it. Every run writes the gap counts to
+  `coverage.json` either way. An operator override stamps the result as not
+  publishable. Bars that appear while the market should be closed are counted and
+  flagged, since a wrong time zone produces them. Ambiguous daylight-saving
+  timestamps raise an error instead of being guessed.
+  `workflow.py` → `load_bars`; `data/coverage.py` → `analyze_coverage`;
+  `domain/timekeeping/calendar.py` → `localize`.
 - **Results are reproducible.** Every run records a fingerprint of its configuration,
   a fingerprint of the exact data, and the code version. A run from uncommitted code
   is stamped untrusted. `configuration/hashing.py` → `compute_hashes`;
@@ -130,7 +137,7 @@ still allowed, so an open position can always be closed.
 
 ## Install and run
 
-Requires Python 3.11 or newer.
+Requires Python 3.11 or newer; developed and tested on 3.12.
 
 ```bash
 git clone https://github.com/sebastianO8/qtros.git
@@ -139,6 +146,9 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 ```
+
+With [uv](https://docs.astral.sh/uv/), `uv sync --extra dev` installs the exact versions
+pinned in `uv.lock`, which are the versions the test suite last passed on.
 
 **Check that everything works (no market data needed):**
 
@@ -160,9 +170,13 @@ and it belongs to the vendor.
 
 ```bash
 qtros ingest histdata_audjpy_m1
-qtros run histdata_audjpy_2023_2025 --allow-gaps
+qtros run histdata_audjpy_sweep_2023_2025
+qtros run histdata_audjpy_2023_2025
 qtros registry
 ```
+
+The first `run` is the Asian-session strategy and the second is the reference
+strategy.
 
 Each run writes `results/<run_id>/` with a manifest, the full trade and fill ledgers,
 the scoring, and `report.html`. `qtros registry` rebuilds `docs/registry.md`, a table
@@ -172,7 +186,7 @@ of every run.
 
 ## Current status
 
-### First real-data run (12 October 2026)
+### First real-data run: reference strategy (12 October 2026)
 
 Run `20261012-AUDJPY_VWAP_PULLBACK-d06f887b`, from commit `65a724b`, on HistData.com
 AUD/JPY one-minute data for 2023–2025. Artifacts are in
@@ -206,16 +220,56 @@ Getting to this run found three problems:
 2. **Any data source without volume had every row rejected.** This was a null-safety
    mistake in the bad-bar check. It is fixed, with regression tests in
    `tests/test_aggregation.py`.
-3. **The data-quality gate could not see the time-zone error.** It checks for missing
+3. **The data-quality gate could not see the time-zone error.** It checked for missing
    bars, not for bars that appear while the market is supposed to be closed. With the
    correct time zone, 287 bars fall in closed time, mostly thin Christmas Day trading.
-   With the wrong one, 1,163 do. Adding that check is on the unfinished list.
+   With the wrong one, 1,163 do. The gate now counts and flags these bars.
+
+This run predates the declared gap tolerance and the 2023 holidays, both added later the
+same day. Re-run today, the same data would pass the gate without an override.
+
+### Second real-data run: Asian-session sweep (12 October 2026)
+
+Run `20261012-AUDJPY_ASIAN_SWEEP-42af60d1`, from commit `1c267d3`, on the same
+HistData.com data. This is a port of the strategy from my original script. Price trades
+beyond the Asian-session range (19:00–04:00 New York), then closes back inside it, and
+the strategy fades the move. The port does not include the original's 50% partial exit
+at 1R or its move-to-breakeven stop, because the engine supports only one stop and one
+target per position. The module docstring of
+`src/qtros/alpha/strategies/audjpy_asian_sweep.py` lists every difference from the
+original. Artifacts are in [`docs/asian_sweep_run/`](docs/asian_sweep_run/).
+
+| Step | Result |
+|---|---|
+| Data quality gate | Accepted. 4.30% of expected bars missing, under the source's declared 5% tolerance. 367 closed-market bars flagged. |
+| Look-ahead audit | Passed on all indicator columns |
+| Signals | 47 entry signals from January to March 2023. The 10× exposure cap refused 25 as too leveraged, and 22 were traded. |
+| Trades | 8 winners, 14 losers. Profit factor 0.71. |
+| Result | −¥4,794 on ¥100,000 (−4.8%), after ¥572 of trading costs |
+| Drawdown halt | On 31 March 2023 the account fell 10.02% below its ¥106,224 peak at the worst price inside a bar. The halt lasts for the rest of the run, so nothing traded after that date. |
+| Gates | **FAIL.** Maximum drawdown 10.37% is over the 10% limit. The top five trades made 77.6% of all gross profit, over the 60% limit. 22 trades is far below the 400 required. |
+| Reconciliation | Passed, 44 fills, 0.00 discrepancy |
+
+![Report from the Asian-session sweep run](docs/asian_sweep_run/report.png)
+
+**What this shows, and what it doesn't.** It shows the risk rules working on real
+trades. The exposure cap refused more than half the signals, and the drawdown limit
+stopped trading after a 10% loss. It does not show whether the idea works. The run
+effectively covers three months, and 22 trades is too few to judge. The strategy was
+also developed on this same 2023–2025 data, so even a good result here would be
+in-sample.
+
+Two choices behind this run were made after looking at the data, and are recorded in
+the config files that hold them. The 5% gap tolerance was set after the first run
+measured 4.4% missing. The exposure cap was raised from 3× to 10× before this run, but
+after the reference strategy's results.
 
 ### What works
 
 - Loading vendor files with declared time zones, quality checks, and fingerprints;
   aggregation from one-minute to five-minute bars.
-- Indicator pipeline with the look-ahead audit.
+- Indicator pipeline with the look-ahead audit, including Wilder ATR and ADX and an
+  Asian-session range indicator that follows New York daylight time.
 - Simulated broker with costs, stops, targets, and gap handling.
 - Risk engine with sizing, exposure caps, and the drawdown halt.
 - A deterministic run loop with exact reconciliation.
@@ -223,26 +277,30 @@ Getting to this run found three problems:
   attribution, and pass/fail gates.
 - An HTML report, reproducible result folders, a registry of runs, and a command-line
   tool.
-- 314 automated tests. Type checking (`mypy --strict`), linting (`ruff`), and layer
-  contracts (`import-linter`) all pass.
+- 352 automated tests. Type checking (`mypy --strict`), linting (`ruff`), and layer
+  contracts (`import-linter`) all pass. Dependency versions are pinned in `uv.lock`.
 
 ### What is unfinished
 
-- **No trades on real data yet.** The reference strategy needs volume data. A
-  Dukascopy source configuration exists (`config/sources/dukascopy_m5.yaml`) but has
-  not been tested against a real Dukascopy file.
-- **The risk limits probably need tuning before the strategy can trade.** With 1% risk
-  per trade and a 3× exposure cap, any entry whose stop is closer than about 0.33% of
-  price would be refused. That is arithmetic, not a measured result.
-- **Holiday calendar is incomplete.** It lists only 2024–2025 holidays, so Christmas
-  2023 shows up as missing data.
-- **No check for bars during closed hours.** That check would have caught the time-zone
-  error described above.
-- **Only one strategy.** The original AUD/JPY session strategy from the first script
-  has not been ported.
+- **No strategy has a meaningful real-data result yet.** See the two runs above.
+- **The Asian-session port is partial.** The original's partial exit and breakeven stop
+  need the engine to support a second target and a stop that moves after entry.
+- **Trades don't record their mechanism tag.** Every trade shows as "(untagged)" in the
+  attribution table. The entry carries the tag, but the portfolio never copies it onto
+  the position. The fix touches the protected accounting code, so it waits for a
+  design decision.
+- **A drawdown halt ends a run for good.** With the current setting, one bad quarter
+  ends a three-year test. Whether research runs should instead halt per session is an
+  open decision.
+- **The reference strategy needs volume data.** A Dukascopy source configuration exists
+  (`config/sources/dukascopy_m5.yaml`) but has not been tested against a real
+  Dukascopy file.
+- **The closed-market check flags but doesn't block.** It needs a declared limit
+  before it can stop a run.
 - **No out-of-sample or walk-forward testing.** Those two gates are reported as
   `NOT_EVALUATED`.
 - **Single instrument, single position, no margin model.**
+- **Only tested on Python 3.12**, although the package declares 3.11 support.
 - **Some design documents are missing.** Code comments refer to design rulings
   (ARCH-001, ARCH-003 to ARCH-007) and a project "constitution" that are not in the
   repository. ARCH-002, the assumptions register, and the automation plan are in

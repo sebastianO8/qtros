@@ -1,0 +1,242 @@
+{
+  "attribution": {
+    "attribution": "CLOSE_DATE",
+    "by_direction": [
+      {
+        "gross_pnl": "-8982.00",
+        "key": "LONG",
+        "net_pnl": "-9379.88",
+        "total_costs": "397.88",
+        "trade_count": 16,
+        "win_rate": "0.250000",
+        "winners": 4
+      },
+      {
+        "gross_pnl": "4760.00",
+        "key": "SHORT",
+        "net_pnl": "4585.42",
+        "total_costs": "174.58",
+        "trade_count": 6,
+        "win_rate": "0.666667",
+        "winners": 4
+      }
+    ],
+    "by_exit_reason": [
+      {
+        "gross_pnl": "500.00",
+        "key": "SESSION_CLOSE",
+        "net_pnl": "439.10",
+        "total_costs": "60.90",
+        "trade_count": 3,
+        "win_rate": "0.666667",
+        "winners": 2
+      },
+      {
+        "gross_pnl": "-15866.00",
+        "key": "STOP_LOSS",
+        "net_pnl": "-16223.28",
+        "total_costs": "357.28",
+        "trade_count": 13,
+        "win_rate": "0.000000",
+        "winners": 0
+      },
+      {
+        "gross_pnl": "11144.00",
+        "key": "TAKE_PROFIT",
+        "net_pnl": "10989.72",
+        "total_costs": "154.28",
+        "trade_count": 6,
+        "win_rate": "1.000000",
+        "winners": 6
+      }
+    ],
+    "by_mechanism": [
+      {
+        "gross_pnl": "-4222.00",
+        "key": "(untagged)",
+        "net_pnl": "-4794.46",
+        "total_costs": "572.46",
+        "trade_count": 22,
+        "win_rate": "0.363636",
+        "winners": 8
+      }
+    ],
+    "by_quarter": [
+      {
+        "gross_pnl": "-4222.00",
+        "key": "2023Q1",
+        "net_pnl": "-4794.46",
+        "total_costs": "572.46",
+        "trade_count": 22,
+        "win_rate": "0.363636",
+        "winners": 8
+      }
+    ],
+    "friction": {
+      "commission": "8.46",
+      "fill_count": 44,
+      "pct_of_gross_pnl": "2.003710",
+      "per_fill": "13.01",
+      "slippage": "310.20",
+      "spread": "253.80",
+      "total": "572.46"
+    }
+  },
+  "concentration": {
+    "attribution": "CLOSE_DATE",
+    "boundary_is_inclusive": false,
+    "lifetime": {
+      "breached": true,
+      "gross_profit": "11966.94",
+      "period": "lifetime",
+      "threshold_pct": "60.0",
+      "top_n_profit": "9289.84",
+      "top_n_share_pct": "77.629202",
+      "top_trade_ids": [
+        "42af60d1-t-000041",
+        "42af60d1-t-000001",
+        "42af60d1-t-000002",
+        "42af60d1-t-000012",
+        "42af60d1-t-000035"
+      ],
+      "trade_count": 22,
+      "winner_count": 8
+    },
+    "quarterly": [
+      {
+        "breached": true,
+        "gross_profit": "11966.94",
+        "period": "2023Q1",
+        "threshold_pct": "60.0",
+        "top_n_profit": "9289.84",
+        "top_n_share_pct": "77.629202",
+        "top_trade_ids": [
+          "42af60d1-t-000041",
+          "42af60d1-t-000001",
+          "42af60d1-t-000002",
+          "42af60d1-t-000012",
+          "42af60d1-t-000035"
+        ],
+        "trade_count": 22,
+        "winner_count": 8
+      }
+    ],
+    "top_n": 5
+  },
+  "daily_points": 790,
+  "drawdown": {
+    "bars": 213949,
+    "max_drawdown": "11018.90",
+    "max_drawdown_pct": "10.373225",
+    "peak_equity": "106224.44",
+    "peak_ts_utc": "2023-01-25T13:20:00.000000+00:00",
+    "trough_equity": "95205.54",
+    "trough_ts_utc": "2023-03-31T18:50:00.000000+00:00"
+  },
+  "gates": {
+    "checks": [
+      {
+        "detail": "computed, but below the significance floor",
+        "name": "min_sharpe",
+        "observed": "-0.563306",
+        "threshold": "1.3",
+        "verdict": "INSUFFICIENT_SAMPLE"
+      },
+      {
+        "detail": "computed, but below the significance floor",
+        "name": "min_profit_factor",
+        "observed": "0.713958",
+        "threshold": "1.4",
+        "verdict": "INSUFFICIENT_SAMPLE"
+      },
+      {
+        "detail": "",
+        "name": "max_drawdown_pct",
+        "observed": "10.373225",
+        "threshold": "10.0",
+        "verdict": "FAIL"
+      },
+      {
+        "detail": "breached quarters: 2023Q1",
+        "name": "quarterly_concentration",
+        "observed": "77.629202",
+        "threshold": "60.0",
+        "verdict": "INSUFFICIENT_SAMPLE"
+      },
+      {
+        "detail": "tier STANDARD",
+        "name": "significance_sample",
+        "observed": "22",
+        "threshold": "400",
+        "verdict": "INSUFFICIENT_SAMPLE"
+      },
+      {
+        "detail": "requires out-of-sample or walk-forward runs",
+        "name": "oos_sharpe_decay_max_pct",
+        "observed": null,
+        "threshold": "30.0",
+        "verdict": "NOT_EVALUATED"
+      },
+      {
+        "detail": "requires out-of-sample or walk-forward runs",
+        "name": "wfo_min_profit_factor",
+        "observed": null,
+        "threshold": "1.15",
+        "verdict": "NOT_EVALUATED"
+      }
+    ],
+    "kill_criterion": {
+      "detail": "kill criterion: requires a mechanism_note before the strategy may pass",
+      "name": "lifetime_concentration",
+      "observed": "77.629202",
+      "threshold": "60.0",
+      "verdict": "FAIL"
+    },
+    "not_evaluated": [
+      "oos_sharpe_decay_max_pct",
+      "wfo_min_profit_factor"
+    ],
+    "overall": "FAIL",
+    "reporting_id": "constitution_v3_2",
+    "required_sample": 400,
+    "sample_size": 22,
+    "watermarks": [
+      "risk halt active at end of run"
+    ]
+  },
+  "reporting_id": "constitution_v3_2",
+  "scored_at_utc": "2026-10-12T21:53:36.766554+00:00",
+  "sharpe": {
+    "annualization_factor": 252,
+    "mean_return": "-0.000083",
+    "periods": 789,
+    "reason": "",
+    "return_basis": "DAILY_CLOSED_EQUITY",
+    "return_type": "ARITHMETIC",
+    "risk_free_rate": "0.0",
+    "sharpe": "-0.563306",
+    "std_return": "0.002352"
+  },
+  "strategy_id": "audjpy_asian_sweep",
+  "strategy_version": "1.0.0",
+  "trades": {
+    "average_bars_held": "27.772727",
+    "average_loss": "1197.24",
+    "average_win": "1495.87",
+    "expectancy": "-217.93",
+    "gross_loss": "16761.40",
+    "gross_profit": "11966.94",
+    "largest_loss": "4656.48",
+    "largest_win": "1931.58",
+    "losers": 14,
+    "net_pnl": "-4794.46",
+    "open_at_end": false,
+    "profit_factor": "0.713958",
+    "scratches": 0,
+    "total_costs": "572.46",
+    "trade_count": 22,
+    "win_rate": "0.363636",
+    "winners": 8
+  },
+  "trusted": true
+}

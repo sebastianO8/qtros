@@ -1,6 +1,32 @@
 [
   {
     "decision": null,
+    "experiment_id": "AUDJPY_ASIAN_SWEEP",
+    "kill_criterion": "FAIL",
+    "lifetime_concentration_pct": "77.629202",
+    "max_drawdown_pct": "10.373225",
+    "mechanism_note": "",
+    "net_pnl": "-4794.46",
+    "outlier_check": "CONCENTRATED (needs mechanism_note)",
+    "overall": "FAIL",
+    "profit_factor": "0.713958",
+    "publishable": false,
+    "report_hash": "79c22fbd144a272ba4e5f54cf474695ac711e0c21c19f413b8465011a42c489f",
+    "reporting_id": "constitution_v3_2",
+    "run_at_utc": "2026-10-12T21:53:36.766554+00:00",
+    "run_hash": "42af60d170b87cd2de4a88c705953872751aa00bfbfe63a8aefc602016cda024",
+    "run_id": "20261012-AUDJPY_ASIAN_SWEEP-42af60d1",
+    "sharpe": "-0.563306",
+    "strategy_id": "audjpy_asian_sweep",
+    "strategy_version": "1.0.0",
+    "trade_count": 22,
+    "trusted": true,
+    "watermarks": [
+      "risk halt active at end of run"
+    ]
+  },
+  {
+    "decision": null,
     "experiment_id": "AUDJPY_VWAP_PULLBACK",
     "kill_criterion": "NOT_EVALUATED",
     "lifetime_concentration_pct": null,
