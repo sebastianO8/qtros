@@ -140,11 +140,16 @@ class TestSourceConfig:
 
 
 class TestHistDataIngestion:
-    def test_semicolon_headerless_fixed_est_file_lands_as_utc_m5(self, tmp_path: Path) -> None:
-        """HistData stamps bars in EST with no DST: 17:00 EST is 22:00 UTC all year."""
+    def test_semicolon_headerless_new_york_file_lands_as_utc_m5(self, tmp_path: Path) -> None:
+        """HistData's AUD/JPY clock is New York local time with daylight saving.
+
+        17:00 New York is 21:00 UTC in July (EDT) and 22:00 UTC in January (EST). A
+        fixed-EST reading would put the July bars at 22:00, one hour late.
+        """
         raw = tmp_path / "data_lake" / "raw" / "histdata_audjpy_m1"
         raw.mkdir(parents=True)
         lines = [
+            "20240103 170000;96.100000;96.120000;96.090000;96.110000;0",
             "20240703 170000;160.100000;160.120000;160.090000;160.110000;0",
             "20240703 170100;160.110000;160.150000;160.100000;160.140000;0",
             "20240703 170400;160.140000;160.140000;160.050000;160.060000;0",
@@ -161,20 +166,21 @@ class TestHistDataIngestion:
             input_root=tmp_path / "data_lake" / "raw",
             results_root=tmp_path / "results",
         )
-        assert report.rows_read == 4 and report.rows_rejected == 0 and report.rows_written == 2
+        assert report.rows_read == 5 and report.rows_rejected == 0 and report.rows_written == 3
 
         with WarehouseStore(warehouse, read_only=True) as store:
             stored = store.query_bars(
                 instrument_id=InstrumentId("AUDJPY"),
                 timeframe=Timeframe.M5,
-                start_utc=datetime(2024, 7, 3, tzinfo=UTC),
+                start_utc=datetime(2024, 1, 1, tzinfo=UTC),
                 end_utc=datetime(2024, 7, 4, tzinfo=UTC),
             )
         assert stored.get_column("ts_utc").to_list() == [
-            datetime(2024, 7, 3, 22, 0, tzinfo=UTC),
-            datetime(2024, 7, 3, 22, 5, tzinfo=UTC),
+            datetime(2024, 1, 3, 22, 0, tzinfo=UTC),
+            datetime(2024, 7, 3, 21, 0, tzinfo=UTC),
+            datetime(2024, 7, 3, 21, 5, tzinfo=UTC),
         ]
-        first = stored.row(0, named=True)
+        first = stored.row(1, named=True)
         assert (first["open"], first["high"], first["low"], first["close"]) == (
             160.10,
             160.15,

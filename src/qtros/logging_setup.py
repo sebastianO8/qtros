@@ -19,6 +19,11 @@ _LEVELS: Final[dict[str, int]] = {
 }
 
 
+def _stderr_logger(*_args: object) -> structlog.PrintLogger:
+    """Return a print logger bound to the *current* ``sys.stderr``."""
+    return structlog.PrintLogger(file=sys.stderr)
+
+
 def configure_logging(level: str = "INFO", log_format: str = "console") -> None:
     """Configure structlog for a process.
 
@@ -49,6 +54,9 @@ def configure_logging(level: str = "INFO", log_format: str = "console") -> None:
             renderer,
         ],
         wrapper_class=structlog.make_filtering_bound_logger(_LEVELS[level]),
-        logger_factory=structlog.PrintLoggerFactory(file=sys.stderr),
+        # Resolve sys.stderr at write time, not at configuration time: a stream object
+        # captured once goes stale if the process swaps it (test runners do), and every
+        # later warning would then fail with "I/O operation on closed file".
+        logger_factory=_stderr_logger,
         cache_logger_on_first_use=False,
     )

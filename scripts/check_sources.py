@@ -118,7 +118,7 @@ REQUIRED: dict[str, tuple[str, ...]] = {
     # Phase 1 finish — CLI, workflow, render, registry
     "qtros/cli.py": ("app", "validate", "run", "ingest", "registry"),
     "qtros/workflow.py": ("execute", "load_bars", "ingest_source", "BASE_INPUT_COLUMNS"),
-    "qtros/logging_setup.py": ("configure_logging",),
+    "qtros/logging_setup.py": ("configure_logging", "_stderr_logger"),
     "qtros/analytics/render/__init__.py": ("render_report", "equity_curve_svg"),
     "qtros/persistence/registry.py": (
         "scan_results",

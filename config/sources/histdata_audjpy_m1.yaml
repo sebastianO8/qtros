@@ -1,7 +1,12 @@
 # HistData.com "Generic ASCII" one-minute bars (free download, histdata.com).
 # Format: semicolon-separated, no header: YYYYMMDD HHMMSS;open;high;low;close;volume
-# Time zone: HistData stamps every bar in EST *without* daylight saving, i.e. a fixed
-# UTC-05:00 offset all year. Declared explicitly; never inferred (Cycle 1 DST lesson).
+# Time zone: America/New_York local time WITH daylight saving. HistData's own FAQ says
+# "EST without daylight saving", but these AUD/JPY files contradict it: five US payrolls
+# releases (08:30 New York local) spike at 08:30 on the file's clock in both summer and
+# winter (2023-07-07, 2024-01-05, 2024-03-08, 2024-07-05, 2025-07-03), and Friday closes
+# land at 16:59 year-round. A fixed-EST reading puts every summer bar one hour late.
+# DST transitions fall on Sunday 02:00 while FX is closed, so STRICT_RAISE never fires on
+# real rows; if it ever does, ingestion stops rather than guessing.
 # Volume: HistData publishes 0 for every bar, meaning "not provided". It is deliberately
 # NOT mapped, so the warehouse records volume as unknown (null) rather than zero.
 # Aggregated to M5 once, at ingestion, because the strategies run on M5 bars.
@@ -20,8 +25,8 @@ columns:
   low: column_4
   close: column_5
 timestamp_format: "%Y%m%d %H%M%S"
-timestamp_policy: DECLARED_FIXED_OFFSET
-declared_offset_minutes: -300
+timestamp_policy: DECLARED_ZONE
+declared_zone: America/New_York
 dst_policy: STRICT_RAISE
 timestamps_are_bar_open: true
 csv_separator: ";"

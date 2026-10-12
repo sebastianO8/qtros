@@ -561,3 +561,32 @@ class TestDrawdownHalt:
             result.rejection is not None
             and result.rejection.code is OrderRejectionCode.NO_OPEN_POSITION
         )
+
+
+class TestApprovalTokenIsConfinedToRisk:
+    """Only ``qtros.risk`` may import the approval sentinel.
+
+    ``domain/orders.py`` documents this rule. Import-linter works at module granularity
+    and cannot restrict a single symbol, so the rule is enforced here by walking the
+    source tree's syntax.
+    """
+
+    def test_no_module_outside_risk_imports_the_sentinel(self) -> None:
+        import ast
+        from pathlib import Path
+
+        src = Path(__file__).resolve().parent.parent / "src" / "qtros"
+        offenders: list[str] = []
+        for path in sorted(src.rglob("*.py")):
+            relative = path.relative_to(src).as_posix()
+            if relative.startswith("risk/") or relative == "domain/orders.py":
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                imported = isinstance(node, ast.ImportFrom) and any(
+                    alias.name == "RISK_APPROVAL" for alias in node.names
+                )
+                accessed = isinstance(node, ast.Attribute) and node.attr == "RISK_APPROVAL"
+                if imported or accessed:
+                    offenders.append(f"{relative}:{getattr(node, 'lineno', '?')}")
+        assert offenders == [], f"RISK_APPROVAL used outside qtros.risk: {offenders}"
